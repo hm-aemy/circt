@@ -876,6 +876,7 @@ def ConvertCombToSynth : Pass<"convert-comb-to-synth"> {
 //===----------------------------------------------------------------------===//
 // ConvertSynthToComb
 //===----------------------------------------------------------------------===//
+
 def ConvertSynthToComb: Pass<"convert-synth-to-comb"> {
   let summary = "Lower Synth ops to Comb ops";
   let description = [{
@@ -885,6 +886,18 @@ def ConvertSynthToComb: Pass<"convert-synth-to-comb"> {
   let dependentDialects = [
     "circt::comb::CombDialect", "circt::hw::HWDialect"
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// ConvertCombToRTLIL
+//===----------------------------------------------------------------------===//
+
+def ConvertCombToRTLIL: Pass<"convert-comb-to-rtlil", "mlir::ModuleOp"> {
+  let summary = "Lower Comb ops to RTLIL ops.";
+  let dependentDialects = [
+    "circt::rtlil::RTLILDialect",
+  ];
+  let options = [ ];
 }
 
 //===----------------------------------------------------------------------===//
