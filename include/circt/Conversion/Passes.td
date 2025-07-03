@@ -834,6 +834,18 @@ def ConvertCombToAIG: Pass<"convert-comb-to-aig",  "hw::HWModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// ConvertCombToRTLIL
+//===----------------------------------------------------------------------===//
+
+def ConvertCombToRTLIL: Pass<"convert-comb-to-rtlil", "mlir::ModuleOp"> {
+  let summary = "Lower Comb ops to RTLIL ops.";
+  let dependentDialects = [
+    "circt::rtlil::RTLILDialect",
+  ];
+  let options = [ ];
+}
+
+//===----------------------------------------------------------------------===//
 // ConvertAIGToComb
 //===----------------------------------------------------------------------===//
 
