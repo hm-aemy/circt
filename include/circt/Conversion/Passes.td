@@ -797,6 +797,22 @@ def ConvertCombToSynth : Pass<"convert-comb-to-synth", "hw::HWModuleOp"> {
               "Maximum number of unknown bits to emulate in a table lookup">];
 }
 
+
+//===----------------------------------------------------------------------===//
+// ConvertSynthToComb
+//===----------------------------------------------------------------------===//
+
+def ConvertSynthToComb: Pass<"convert-synth-to-comb", "hw::HWModuleOp"> {
+  let summary = "Lower Synth ops to Comb ops";
+  let description = [{
+    This pass converts Synth operations to Comb operations. This is mostly
+    used for verifying post-synthesis results.
+  }];
+  let dependentDialects = [
+    "circt::comb::CombDialect", "circt::hw::HWDialect"
+  ];
+}
+
 //===----------------------------------------------------------------------===//
 // ConvertHWToRTLIL
 //===----------------------------------------------------------------------===//
@@ -807,20 +823,6 @@ def ConvertHWToRTLIL: Pass<"convert-hw-to-rtlil", "mlir::ModuleOp"> {
     "circt::rtlil::RTLILDialect",
   ];
   let options = [ ];
-}
-
-//===----------------------------------------------------------------------===//
-// ConvertSynthToComb
-//===----------------------------------------------------------------------===//
-def ConvertSynthToComb: Pass<"convert-synth-to-comb", "hw::HWModuleOp"> {
-  let summary = "Lower Synth ops to Comb ops";
-  let description = [{
-    This pass converts Synth operations to Comb operations. This is mostly
-    used for verifying post-synthesis results.
-  }];
-  let dependentDialects = [
-    "circt::comb::CombDialect", "circt::hw::HWDialect"
-  ];
 }
 
 //===----------------------------------------------------------------------===//
