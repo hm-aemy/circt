@@ -23,7 +23,6 @@
 #include "circt/Conversion/CombToDatapath.h"
 #include "circt/Conversion/CombToSMT.h"
 #include "circt/Conversion/CombToSynth.h"
-#include "circt/Conversion/CombToRTLIL.h"
 #include "circt/Conversion/HWToRTLIL.h"
 #include "circt/Conversion/ConvertToArcs.h"
 #include "circt/Conversion/DCToHW.h"
