@@ -531,7 +531,7 @@ struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
                                         resultWire};
       rtlil::ConcatOp::create(rewriter, op->getLoc(), genLocal(rewriter),
                               std::move(connections), currentWidth,
-                              operandWidth, resultWidth);
+                              operandWidth);
       currentResult = resultWire;
       currentWidth = resultWidth;
     }

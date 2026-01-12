@@ -260,14 +260,16 @@ def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
                       }], "getParameters()">;
 }
 
-def ConcatOp : RTLILOp<"concat", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$widthA", "$widthB", "$widthY"]>]> {
+def ConcatOp : RTLILOp<"concat", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$widthA", "$widthB", "::llvm::cast<::mlir::IntegerAttr>(getWidthY()).getInt()"]>]> {
   let arguments = (ins StrAttr:$name,
                 Variadic<RTLILValue>:$connections,
                               I32Attr:$widthA,
                               I32Attr:$widthB,
-                              I32Attr:$widthY,
                               DefaultValuedAttr<StrAttr, [{"$$concat"}]>:$type,
                               DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\Y"} }]>:$ports);
+  DerivedAttr widthY = DerivedAttr<"::mlir::IntegerAttr", [{
+    return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), getWidthA() + getWidthB());
+  }], "getWidthY()">;
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\A_WIDTH", 32, getWidthA()},
