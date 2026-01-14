@@ -519,7 +519,7 @@ struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
       rtlil::WireOp resultWire =
           getTypeConverter()
               ->materializeTargetConversion(rewriter, op->getLoc(),
-                                            convertedType, {})
+                                            convertedType, op.getResult())
               .getDefiningOp<rtlil::WireOp>();
       if (!resultWire)
         return failure();
