@@ -502,6 +502,8 @@ struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
     unsigned currentWidth =
         op.getInputs().back().getType().getIntOrFloatBitWidth();
 
+    const auto &isSigned = op.getResult().getType().isSignedInteger();
+
     // Yosys RTLIL concat cell has two inputs.
     // comb::ConcatOp has variadic operands, chain the inputs.
     // To better match the Yosys RTLIL concat cell, start at the LSB value
@@ -511,21 +513,16 @@ struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
       unsigned resultWidth = currentWidth + operandWidth;
 
       // Create a type for the intermediate result with the combined width
-      auto convertedType =
+      auto targetType =
           getTypeConverter()->convertType(rewriter.getIntegerType(resultWidth));
-      if (!convertedType)
+      if (!targetType)
         return failure();
 
       rtlil::WireOp resultWire =
-          getTypeConverter()
-              ->materializeTargetConversion(rewriter, op->getLoc(),
-                                            convertedType, op.getResult())
-              .getDefiningOp<rtlil::WireOp>();
+          rtlil::WireOp::create(rewriter, op->getLoc(), targetType,
+                                genUniqueLocalName(rewriter), isSigned);
       if (!resultWire)
         return failure();
-
-      rewriter.modifyOpInPlace(
-          resultWire, [&] { resultWire.setNameAttr(genUniqueLocalName(rewriter)); });
 
       // Second operand is the MSB side
       std::vector<Value> connections = {currentResult, adaptor.getInputs()[i],
