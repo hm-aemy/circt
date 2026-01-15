@@ -377,15 +377,15 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
   LogicalResult
   matchAndRewrite(hw::OutputOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto outputs = adaptor.getOutputs();
-    int i = 0;
-    for (auto wire : outputs) {
+    for (const auto &en : llvm::enumerate(adaptor.getOutputs())) {
+      auto wire = en.value();
+      size_t i = en.index();
       auto op = wire.getDefiningOp<rtlil::WireOp>();
       auto guard = rtlilContext.lock();
       rewriter.modifyOpInPlace(op, [&] {
         op.setPortOutput(true);
         op.setPortId(rtlilContext.portMap[i].first + 1);
-        op.setName(rtlilContext.portMap[i++].second);
+        op.setName(rtlilContext.portMap[i].second);
       });
     }
     rewriter.eraseOp(op);
