@@ -560,6 +560,7 @@ struct ExtractConversion : ConversionPatternBase<comb::ExtractOp> {
     rtlil::SliceOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
                            {adaptor.getInput(), resultWire},
                            op.getInput().getType().getIntOrFloatBitWidth(),
+                           op.getResult().getType().getIntOrFloatBitWidth(),
                            op.getLowBit());
     rewriter.replaceOp(op, resultWire);
     return success();

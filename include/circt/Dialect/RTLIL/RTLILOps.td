@@ -260,21 +260,19 @@ def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
                       }], "getParameters()">;
 }
 
-def SliceOp : RTLILOp<"slice", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<2>, FixedWidths<["$widthA", "::llvm::cast<::mlir::IntegerAttr>(getWidthY()).getInt()"]>]> {
+def SliceOp : RTLILOp<"slice", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<2>, FixedWidths<["$widthA", "$widthY"]>]> {
   let arguments = (ins StrAttr:$name,
                       Variadic<RTLILValue>:$connections,
                       I32Attr:$widthA,
+                      I32Attr:$widthY,
                       I32Attr:$offset,
                       DefaultValuedAttr<StrAttr, [{"$$slice"}]>:$type,
                       DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\Y"} }]>:$ports);
-  DerivedAttr widthY = DerivedAttr<"::mlir::IntegerAttr", [{
-    return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), getWidthA() - getOffset());
-  }], "getWidthY()">;
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\OFFSET", 32, getOffset()},
                               {"\\A_WIDTH", 32, getWidthA()},
-                              {"\\Y_WIDTH", 32, getWidthY().getInt()},
+                              {"\\Y_WIDTH", 32, getWidthY()},
                             });
                           }], "getParameters()">;
 }
