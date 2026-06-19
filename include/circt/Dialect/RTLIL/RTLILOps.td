@@ -1,7 +1,6 @@
 #ifndef RTLIL_OPS
 #define RTLIL_OPS
 
-include "circt/Dialect/RTLIL/RTLIL.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
@@ -13,23 +12,11 @@ include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/CommonAttrConstraints.td"
 
-//===----------------------------------------------------------------------===//
-// RTLIL dialect definition.
-//===----------------------------------------------------------------------===//
-
-def RTLILDialect : Dialect {
-    let name = "rtlil";
-    let summary = "Types and operations for RTLIL dialect";
-    let description = [{
-        This dialect deifnes the `rtlil` dialect, which is used to translate
-        between CIRCT and Yosys. For more information, see the [RTLIL
-        description](https://yosyshq.readthedocs.io/projects/yosys/en/latest/yosys_internals/formats/rtlil_rep.html).
-    }];
-    let cppNamespace = "::circt::rtlil";
-    // let hasConstantMaterializer = 1;
-    let useDefaultTypePrinterParser = 1;
-    let useDefaultAttributePrinterParser = 1;
-}
+include "circt/Dialect/RTLIL/RTLIL.td"
+include "circt/Dialect/RTLIL/RTLILDialect.td"
+include "circt/Dialect/RTLIL/RTLILEnums.td"
+include "circt/Dialect/RTLIL/RTLILTypes.td"
+include "circt/Dialect/RTLIL/RTLILAttributes.td"
 
 //===----------------------------------------------------------------------===//
 // Base class definitions
@@ -38,112 +25,10 @@ def RTLILDialect : Dialect {
 class RTLILOp<string mnemonic, list<Trait> traits = []> :
         Op<RTLILDialect, mnemonic, traits>;
 
-class RTLILAttr<string attrName, string attrMnemonic, list<Trait> traits = []>
-    : AttrDef<RTLILDialect, attrName, traits> {
-  let mnemonic = attrMnemonic;
-}
-
-class RTLILType<string name, list<Trait> traits = []>
-  : TypeDef<RTLILDialect, name, traits> { }
 
 //===----------------------------------------------------------------------===//
-// Operation helper definitions
+// Wire related operations and primitives
 //===----------------------------------------------------------------------===//
-
-// Parameters
-
-// One entry of an `RTLIL::Cell`'s parameter dict, or of any RTLIL object's
-// attribute dict -- both map an identifier to an `RTLIL::Const`, so both use
-// this.
-//
-// `$value` is deliberately a bare `Attribute` rather than an `IntegerAttr`: an
-// `RTLIL::Const` is either a string or a bit vector of arbitrary width that may
-// contain `x` and `z`, and Yosys hands back plenty of both ($lut masks, $mem
-// INIT, string parameters). It holds one of:
-//
-//   * `IntegerAttr` -- the convenient case, and what the derived `parameters`
-//     attributes below construct;
-//   * `ConstAttr`   -- an explicit bit vector, for widths over 64 or any value
-//     containing `x`/`z`;
-//   * `StringAttr`  -- a string parameter.
-//
-// `$flags` carries `RTLIL::Const::flags` verbatim so that CONST_FLAG_STRING,
-// _SIGNED and _REAL survive a round trip.
-def ParamAttr : RTLILAttr<"Parameter", "param"> {
-  let parameters = (ins
-                    "::mlir::StringAttr":$name,
-                    "::mlir::Attribute":$value,
-                    OptionalParameter<"std::optional<uint16_t>">:$flags);
-  // Explicitly delimited: without the angle brackets the printed form is
-  // `#rtlil.param "\NAME" 4 : i32`, which is ambiguous inside the parameter
-  // array.
-  let assemblyFormat = "`<` $name $value (`flags` $flags^)? `>`";
-  let builders = [
-    AttrBuilder<(ins "llvm::StringRef":$name, "unsigned":$width,"uint64_t":$val), [{
-      auto intattr = mlir::IntegerAttr::get(mlir::IntegerType::get($_ctxt, width), val);
-      auto strattr = mlir::StringAttr::get($_ctxt, name);
-      return Base::get($_ctxt, strattr, intattr, std::nullopt);
-    }]>
-  ];
-  let genVerifyDecl = 1;
-}
-
-def ParamArrayAttr
-  : TypedArrayAttrBase<ParamAttr, "cell parameters"> {
-  let constBuilderCall = "::circt::rtlil::createParamArrayAttr($_builder.getContext(), $0)";
-}
-
-// Connectivity
-
-class I8EnumAttrCase<string sym, int val, string str = sym>
-    : IntEnumAttrCaseBase<I8, sym, str, val>;
-def StateS0: I8EnumAttrCase<"S0", 0>;
-def StateS1: I8EnumAttrCase<"S1", 1>;
-def StateSx: I8EnumAttrCase<"Sx", 2>;
-def StateSz: I8EnumAttrCase<"Sz", 3>;
-def StateSa: I8EnumAttrCase<"Sa", 4>;
-
-class I8EnumAttr<string name, string summary, list<I8EnumAttrCase> cases> :
-    IntEnumAttr<I8, name, summary, cases> {
-  let underlyingType = "uint8_t";
-}
-
-def StateEnumAttr: I8EnumAttr<"StateEnum", "RTLIL::State model",
-    [StateS0, StateS1, StateSx, StateSz, StateSa]> {
-  let stringToSymbolFnName = "ConvertToEnum";
-  let symbolToStringFnName = "ConvertToString";
-  let cppNamespace = "::circt::rtlil";
-}
-
-// A parameterized integer type. Declares the hw::IntType in C++.
-def MValueTypeImpl : RTLILType<"MValue"> {
-  let summary = "parameterized-width RTLIL::State sequence";
-  let parameters = (ins "::mlir::TypedAttr":$width);
-  let typeName = "rtlil.val";
-  let assemblyFormat = "`[` $width `]`";
-  let mnemonic = "val";
-  let extraClassDeclaration = [{
-    /// The width of this value, in bits.
-    ///
-    /// The width is stored as a `TypedAttr` so that it can print as
-    /// `!rtlil<val[32 : i32]>`, which means every reader would otherwise spell
-    /// `cast<IntegerAttr>(cast<MValueType>(t).getWidth()).getInt()`. The
-    /// import/export converters do this on every wire, chunk and slice.
-    unsigned getBitWidth();
-
-    /// Build an `!rtlil<val[$width : i32]>` from a plain bit width.
-    static MValueType get(::mlir::MLIRContext *context, unsigned width);
-  }];
-}
-
-class MValueExpander  {
-  string typeName = MValueTypeImpl.cppType;
-}
-
-def RTLILValue : DialectType<RTLILDialect, CPred<"::circt::rtlil::isMValueType($_self)">, "value">;
-
-def ConstAttr
-  : TypedArrayAttrBase<StateEnumAttr, "constant multi-valued bitvec">;
 
 def ConstOp : MValueExpander, RTLILOp<"const", [AllMatch<["llvm::cast<mlir::IntegerAttr>(llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()).getValue()", "$value.size()"], "bitwidth matches">]> {
   let arguments = (ins ConstAttr:$value);
@@ -282,6 +167,11 @@ def ModuleOp : RTLILOp<"module", [
 
   let hasVerifier = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// Cell related operations
+//===----------------------------------------------------------------------===//
+
 
 def CellOpInterface : OpInterface<"CellOpInterface"> {
   let description = [{

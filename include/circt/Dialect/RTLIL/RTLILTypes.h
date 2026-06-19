@@ -4,7 +4,9 @@
 #include "RTLIL.h"
 
 namespace circt::rtlil {
+
 bool isMValueType(mlir::Type type);
+
 mlir::ArrayAttr createParamArrayAttr(
     mlir::MLIRContext *context,
     llvm::ArrayRef<std::tuple<llvm::StringRef, unsigned, uint64_t>> &&r);
@@ -29,6 +31,7 @@ bool isValidIdentifier(llvm::StringRef name);
 /// A free function rather than a method on `ModuleOp` because TableGen emits op
 /// classes alphabetically, leaving `WireOp` incomplete inside `ModuleOp`.
 llvm::SmallVector<WireOp> getPortWires(ModuleOp module);
+
 }; // namespace circt::rtlil
 
 #endif
