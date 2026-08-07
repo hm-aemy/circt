@@ -660,12 +660,24 @@ if(CIRCT_YOSYS_LIB_ENABLED)
   message(STATUS "  ABC:        ${CIRCT_YOSYS_ABC_EXECUTABLE}")
 
   # libyosys is a shared library living outside of CIRCT's own library
-  # directory, and its install name is `@rpath/libyosys.dylib`, so installed
-  # binaries need the directory it ends up in on their RPATH. Build-tree
-  # binaries get it automatically from the link line.
+  # directory, and its install name is `@rpath/libyosys.dylib`, so binaries
+  # linking it need the directory it ends up in on their RPATH.
   list(APPEND CMAKE_INSTALL_RPATH
        ${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}/yosys)
   set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+  # The build-tree RPATH has to be spelled out rather than left to
+  # `CMAKE_INSTALL_RPATH_USE_LINK_PATH`: CMake derives that entry from the
+  # linked library's install name, which means reading the file at *generate*
+  # time -- and ExternalProject only produces `libyosys` later, during the
+  # build. On a fresh configure the entry is silently dropped and the binaries
+  # fail to launch, until some unrelated re-generation happens to run with the
+  # library in place.
+  #
+  # This leaves `CMAKE_BUILD_RPATH` non-empty, which reaches one branch of
+  # LLVM's `llvm_setup_rpath()`. That branch is already unreachable here: the
+  # function returns early on `CMAKE_INSTALL_RPATH`, set just above.
+  list(APPEND CMAKE_BUILD_RPATH ${CIRCT_YOSYS_LIBDIR})
 
   # ExternalProject installs into CIRCT's *build* tree, so without these an
   # installed CIRCT would ship no Yosys at all.
