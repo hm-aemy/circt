@@ -102,5 +102,6 @@ if config.libfst_enabled:
 
 if config.yosys_lib_enabled:
   config.available_features.add('yosys')
+  tools.append('circt-yosys')
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

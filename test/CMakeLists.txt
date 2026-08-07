@@ -55,6 +55,10 @@ if(CIRCT_SLANG_FRONTEND_ENABLED)
   list(APPEND CIRCT_TEST_DEPENDS circt-verilog-lsp-server)
 endif()
 
+if(CIRCT_YOSYS_LIB_ENABLED)
+  list(APPEND CIRCT_TEST_DEPENDS circt-yosys)
+endif()
+
 add_lit_testsuite(check-circt "Running the CIRCT regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${CIRCT_TEST_DEPENDS}

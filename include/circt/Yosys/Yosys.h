@@ -10,9 +10,11 @@
 // CIRCT rather than driven as a subprocess, so a design can be handed to Yosys
 // passes and read back without ever touching a file.
 //
-// This header deliberately exposes none of Yosys' own API. The Yosys headers
-// require exceptions, RTTI, and C++20, and their `_YOSYS_` namespace macros do
-// not mix well with LLVM headers, so they stay confined to `Yosys.cpp`.
+// This header deliberately exposes none of Yosys' own API, so that including it
+// costs nothing. Code that does want the Yosys API includes `kernel/rtlil.h` and
+// friends directly, as `tools/circt-yosys` does; the only thing those headers
+// still ask of the build is C++20, which
+// `cmake/modules/YosysCompilerOptions.cmake` arranges.
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,10 +33,10 @@ namespace yosys {
 /// safe to call from any binary regardless of where it lives.
 ///
 /// Yosys resolves both its data directory and `yosys-abc` relative to the
-/// running executable, which does not hold for a CIRCT binary in general, and
-/// it fails *silently* when they are wrong: setup still succeeds and the
-/// process dies with exit code 1 and no diagnostic as soon as a pass reads a
-/// technology library. Both paths are therefore set explicitly here.
+/// running executable, which holds for a CIRCT tool in `bin/` but not for a
+/// binary elsewhere in the build tree. Both paths are therefore resolved here
+/// and assigned before `yosys_setup()`, which leaves them alone when they are
+/// already set.
 ///
 /// Returns an error if the data directory cannot be located.
 llvm::Error initialize();
