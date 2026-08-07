@@ -6,19 +6,29 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A proof of concept for the in-process Yosys library: build a small design
-// with the Yosys API, run real Yosys passes over it, and read the result back
-// -- without writing a file or spawning the `yosys` binary.
+// A proof of concept for the in-process Yosys library: start from a CIRCT
+// `hw.module`, hand-build the equivalent Yosys design, run real Yosys passes
+// over it, and read the result back -- all in one process, without writing a
+// file or spawning the `yosys` binary.
 //
-// The design is constructed as RTLIL directly rather than converted from CIRCT
-// IR. Translating between the two is the interesting problem and is not
-// attempted here; what this shows is that the machinery underneath it works.
+// The point is that both halves live in the same translation unit: MLIR/CIRCT
+// headers and Yosys headers coexist, and an `mlir::Value` can be used as the key
+// of a map to an `RTLIL::Wire`. This is deliberately *not* a conversion pass.
+// The input is a hardcoded module and the translation handles exactly the two
+// operations it contains; a real conversion has to deal with the whole of Comb
+// and HW, multi-operand ops, non-integer types, instances, and registers.
 //
 //===----------------------------------------------------------------------===//
 
+#include "circt/Dialect/Comb/CombOps.h"
+#include "circt/Dialect/HW/HWOps.h"
+#include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Support/Version.h"
 #include "circt/Yosys/Yosys.h"
 
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Parser/Parser.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -34,47 +44,96 @@
 #include "kernel/yosys.h"
 
 using namespace circt;
+using namespace mlir;
 namespace cl = llvm::cl;
 
-/// The passes to run over the design. `techmap` reads a technology library out
-/// of Yosys' data directory and `abc` execs the `yosys-abc` binary, so getting
-/// through this list also proves both runtime paths were resolved correctly.
+/// The CIRCT-side input: an 8-bit `(a & b) | c`.
+static constexpr llvm::StringRef demoIR = R"MLIR(
+  hw.module @demo(in %a: i8, in %b: i8, in %c: i8, out y: i8) {
+    %0 = comb.and %a, %b : i8
+    %1 = comb.or %0, %c : i8
+    hw.output %1 : i8
+  }
+)MLIR";
+
+/// The passes to run over the design once it has been built. `techmap` reads a
+/// technology library out of Yosys' data directory and `abc` execs the
+/// `yosys-abc` binary, so getting through this list also proves both runtime
+/// paths were resolved correctly.
 static constexpr llvm::StringRef passPipeline[] = {
     "hierarchy -check -top demo", "opt", "techmap", "abc -g AND,OR,XOR",
     "opt_clean"};
 
-/// Build the design a frontend would otherwise produce:
+/// Translate `hwModule` into a fresh RTLIL module inside `design`.
 ///
-///     input a, b, c;  output y;
-///     $and: a & b -> tmp
-///     $or:  tmp | c -> y
-///
-/// Two cells, joined by the internal wire `\tmp`. Identifiers are `IdString`s,
-/// where a leading backslash marks a public name -- one that came from the
-/// source -- and a leading dollar sign an internal one.
-static Yosys::RTLIL::Module *buildDemoDesign(Yosys::RTLIL::Design *design) {
-  auto *module = design->addModule("\\demo");
+/// Only what the hardcoded input above needs: integer-typed ports, two-operand
+/// `comb.and`/`comb.or`, and `hw.output`. Anything else is reported rather than
+/// silently ignored, because a demo that quietly drops operations would be worse
+/// than one that stops.
+static Yosys::RTLIL::Module *buildRtlilFrom(Yosys::RTLIL::Design *design,
+                                            hw::HWModuleOp hwModule) {
+  auto *module = design->addModule("\\" + hwModule.getModuleName().str());
+  Block *body = hwModule.getBodyBlock();
 
-  auto *a = module->addWire("\\a", 8);
-  a->port_input = true;
-  auto *b = module->addWire("\\b", 8);
-  b->port_input = true;
-  auto *c = module->addWire("\\c", 8);
-  c->port_input = true;
-  auto *y = module->addWire("\\y", 8);
-  y->port_output = true;
+  // Ports first. `mlir::Value` is a handle, so it works as a DenseMap key
+  // directly -- this map is the whole of the translation state.
+  llvm::DenseMap<Value, Yosys::RTLIL::Wire *> wires;
+  llvm::SmallVector<Yosys::RTLIL::Wire *> outputWires;
+  for (const hw::PortInfo &port : hwModule.getPortList()) {
+    auto *wire = module->addWire("\\" + port.getName().str(),
+                                 hw::getBitWidth(port.type));
+    if (port.isInput()) {
+      wire->port_input = true;
+      wires[body->getArgument(port.argNum)] = wire;
+    } else {
+      wire->port_output = true;
+      outputWires.push_back(wire);
+    }
+  }
   module->fixup_ports();
 
-  // Not a port: purely the connection between the two cells.
-  auto *tmp = module->addWire("\\tmp", 8);
+  // Then the body, in order. Every op defines at most one result, and operands
+  // are always already in the map because an `hw.module` body is a graph region
+  // that this demo keeps in topological order.
+  unsigned cellIndex = 0;
+  for (Operation &op : body->getOperations()) {
+    if (auto outputOp = dyn_cast<hw::OutputOp>(op)) {
+      for (auto [wire, value] : llvm::zip(outputWires, outputOp.getOperands()))
+        module->connect(wire, wires.lookup(value));
+      continue;
+    }
 
-  module->addAnd("$and", a, b, tmp);
-  module->addOr("$or", tmp, c, y);
+    // `comb.and`/`comb.or` are variadic; the RTLIL cells are strictly binary,
+    // so a real conversion would decompose. Here we only accept what we emit.
+    if (op.getNumOperands() != 2 || op.getNumResults() != 1) {
+      llvm::WithColor::error(llvm::errs(), "circt-yosys")
+          << "unsupported operation: " << op << "\n";
+      return nullptr;
+    }
+    auto *lhs = wires.lookup(op.getOperand(0));
+    auto *rhs = wires.lookup(op.getOperand(1));
+    auto *result =
+        module->addWire("$" + std::to_string(cellIndex),
+                        hw::getBitWidth(op.getResult(0).getType()));
+    wires[op.getResult(0)] = result;
+
+    auto name = "$cell_" + std::to_string(cellIndex++);
+    if (isa<comb::AndOp>(op))
+      module->addAnd(name, lhs, rhs, result);
+    else if (isa<comb::OrOp>(op))
+      module->addOr(name, lhs, rhs, result);
+    else {
+      llvm::WithColor::error(llvm::errs(), "circt-yosys")
+          << "no RTLIL mapping for: " << op << "\n";
+      return nullptr;
+    }
+  }
+
   return module;
 }
 
 /// Print how many cells of each type the module contains, in a stable order.
-/// This is the half that matters for a real integration: after the passes run,
+/// This is the half that matters for a real integration: after the passes run
 /// the design is still an ordinary C++ object, and walking it is where a
 /// translation back into CIRCT's IR would happen.
 static void printCellHistogram(llvm::raw_ostream &os,
@@ -98,17 +157,33 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       "circt-yosys - drive Yosys as a library from CIRCT\n\n"
-      "  Builds a small design with the Yosys API, runs Yosys passes over it,\n"
-      "  and prints the resulting cells. Yosys' own log goes to stderr; this\n"
-      "  tool's output goes to stdout.\n");
+      "  Builds a hardcoded hw.module, translates it to a Yosys design, runs\n"
+      "  Yosys passes over it, and prints the resulting cells. Yosys' own log\n"
+      "  goes to stderr; this tool's output goes to stdout.\n");
 
-  // Registers Yosys' built-in passes and points it at its data directory and
-  // `yosys-abc`. Both are located relative to this executable when possible,
-  // which is why running from the build tree's `bin/` exercises a different
-  // code path than the unit tests do.
+  // The CIRCT half.
+  MLIRContext context;
+  context.loadDialect<hw::HWDialect, comb::CombDialect>();
+  OwningOpRef<ModuleOp> mlirModule = parseSourceString<ModuleOp>(demoIR,
+                                                                 &context);
+  if (!mlirModule) {
+    llvm::WithColor::error(llvm::errs(), "circt-yosys")
+        << "failed to parse the demo module\n";
+    return 1;
+  }
+  auto hwModule = SymbolTable(mlirModule.get()).lookup<hw::HWModuleOp>("demo");
+  assert(hwModule && "demo module must exist");
+
+  llvm::outs() << "input hw.module:\n";
+  hwModule.print(llvm::outs());
+  llvm::outs() << "\n\n";
+
+  // The Yosys half. Registers Yosys' built-in passes and points it at its data
+  // directory and `yosys-abc`, both located relative to this executable when
+  // possible.
   if (auto error = yosys::initialize()) {
-    llvm::logAllUnhandledErrors(std::move(error),
-                                llvm::WithColor::error(llvm::errs(), "circt-yosys"));
+    llvm::logAllUnhandledErrors(
+        std::move(error), llvm::WithColor::error(llvm::errs(), "circt-yosys"));
     return 1;
   }
 
@@ -120,7 +195,11 @@ int main(int argc, char **argv) {
                << "\n";
 
   Yosys::RTLIL::Design design;
-  auto *module = buildDemoDesign(&design);
+  auto *module = buildRtlilFrom(&design, hwModule);
+  if (!module) {
+    yosys::shutdown();
+    return 1;
+  }
   llvm::outs() << "built " << module->name.str() << " with "
                << module->cells().size() << " cells\n";
 

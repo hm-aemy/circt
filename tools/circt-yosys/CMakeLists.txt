@@ -13,8 +13,12 @@ set(LLVM_LINK_COMPONENTS Support)
 add_circt_tool(circt-yosys circt-yosys.cpp)
 target_link_libraries(circt-yosys
   PRIVATE
-  CIRCTYosys
+  CIRCTComb
+  CIRCTHW
   CIRCTSupport
+  CIRCTYosys
+  MLIRIR
+  MLIRParser
   Yosys::libyosys
 )
 

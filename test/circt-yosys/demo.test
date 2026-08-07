@@ -5,7 +5,15 @@
 ; Yosys' own log goes to stderr, so stdout carries only the tool's output and
 ; needs no filtering here.
 
-; The design as built by the Yosys API: two cells joined by an internal wire.
+; The CIRCT half: a hardcoded hw.module, parsed and printed back.
+; CHECK:      input hw.module:
+; CHECK-NEXT: hw.module @demo(in %a : i8, in %b : i8, in %c : i8, out y : i8)
+; CHECK-NEXT:   comb.and %a, %b : i8
+; CHECK-NEXT:   comb.or %0, %c : i8
+; CHECK-NEXT:   hw.output
+
+; The Yosys half: one RTLIL cell per Comb operation, built through the Yosys API
+; in the same translation unit.
 ; CHECK: built \demo with 2 cells
 
 ; Every pass in the pipeline runs. `techmap` reads a technology library out of
