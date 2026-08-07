@@ -544,6 +544,92 @@ if(CIRCT_BINDINGS_TCL_ENABLED)
 endif()
 
 #-------------------------------------------------------------------------------
+# Yosys Synthesis lib
+#-------------------------------------------------------------------------------
+option(CIRCT_YOSYS_LIB_ENABLED "Enables the Yosys library." OFF)
+set(CIRCT_YOSYS_ROOT "" CACHE PATH
+    "Yosys build directory or install prefix providing libyosys.")
+
+llvm_canonicalize_cmake_booleans(CIRCT_YOSYS_LIB_ENABLED)
+
+if(CIRCT_YOSYS_LIB_ENABLED)
+  message(STATUS "Yosys library is enabled")
+
+  # Unlike slang, Yosys is not built as part of CIRCT: its CMake build assumes
+  # it is the top-level project (it resolves paths against `CMAKE_SOURCE_DIR`)
+  # and vendors slang, fmt, and tomlplusplus, whose targets would clash with
+  # the ones CIRCT creates for the slang frontend. Point CIRCT at a separately
+  # built Yosys instead, e.g.
+  #
+  #   cmake -B build -DYOSYS_INSTALL_LIBRARY=ON <yosys-source-dir>
+  #   cmake --build build --target libyosys
+  #
+  # and configure CIRCT with `-DCIRCT_YOSYS_ROOT=<yosys-build-or-install-dir>`.
+  #
+  # Yosys ships a CMake package, generated both for its build tree
+  # (`<build>/YosysConfig.cmake`) and for an installation
+  # (`<prefix>/lib/cmake/yosys/YosysConfig.cmake`), so this is plain config
+  # mode -- CIRCT carries no `FindYosys.cmake`. The hint variable is
+  # deliberately spelled in mixed case: an upper-case `YOSYS_ROOT` makes
+  # `find_package()` warn about policy CMP0144 on CMake < 3.27.
+  #
+  # Note that a static `libyosys` (`BUILD_SHARED_LIBS=OFF`) gets no package
+  # config, so discovery only ever succeeds for a shared one.
+  if(CIRCT_YOSYS_ROOT)
+    set(Yosys_ROOT "${CIRCT_YOSYS_ROOT}")
+  endif()
+  find_package(Yosys REQUIRED CONFIG)
+
+  # `Yosys::libyosys` carries the include directory, `_YOSYS_`, and
+  # `cxx_std_20` as usage requirements; see `YosysCompilerOptions.cmake` for
+  # the exceptions and RTTI the headers additionally need, which cannot be
+  # expressed that way.
+  #
+  # The exported target stores its location per configuration
+  # (`IMPORTED_LOCATION_<CONFIG>`, with `NOCONFIG` when Yosys was built without
+  # a `CMAKE_BUILD_TYPE`), so the unsuffixed property is usually empty. Prefer
+  # the configuration CIRCT is being built in and fall back to the first one
+  # the package offers.
+  get_target_property(_yosys_configs Yosys::libyosys IMPORTED_CONFIGURATIONS)
+  set(YOSYS_LIBRARY "")
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" _yosys_build_type)
+  foreach(config ${_yosys_build_type} ${_yosys_configs})
+    get_target_property(YOSYS_LIBRARY Yosys::libyosys IMPORTED_LOCATION_${config})
+    if(YOSYS_LIBRARY)
+      break()
+    endif()
+  endforeach()
+  if(NOT YOSYS_LIBRARY)
+    get_target_property(YOSYS_LIBRARY Yosys::libyosys IMPORTED_LOCATION)
+  endif()
+  if(NOT YOSYS_LIBRARY)
+    message(FATAL_ERROR "Yosys::libyosys reports no IMPORTED_LOCATION")
+  endif()
+  unset(_yosys_configs)
+  unset(_yosys_build_type)
+
+  message(STATUS "Using Yosys ${YOSYS_VERSION}")
+  message(STATUS "  library:    ${YOSYS_LIBRARY}")
+  message(STATUS "  headers:    ${YOSYS_INCLUDEDIR}")
+  message(STATUS "  data files: ${YOSYS_DATADIR}")
+  message(STATUS "  ABC:        ${YOSYS_ABC_EXECUTABLE}")
+
+  # Yosys resolves its data directory and `yosys-abc` relative to the *running
+  # executable*, which never matches for a CIRCT binary. The failure is silent
+  # -- `yosys_setup()` succeeds and the process dies with exit code 1 and no
+  # diagnostic as soon as a pass reads a techlib -- so any library including
+  # the Yosys headers has to override both after `yosys_setup()`, from these
+  # two paths. `YOSYS_ABC_EXECUTABLE` is empty when Yosys was built with an
+  # integrated or disabled ABC.
+
+  # libyosys is usually a shared library living outside of CIRCT's own library
+  # directory, so make sure installed binaries can still find it.
+  get_filename_component(YOSYS_LIBRARY_DIR ${YOSYS_LIBRARY} DIRECTORY)
+  list(APPEND CMAKE_INSTALL_RPATH ${YOSYS_LIBRARY_DIR})
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
+#-------------------------------------------------------------------------------
 # slang Verilog Frontend
 #-------------------------------------------------------------------------------
 
