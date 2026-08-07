@@ -100,4 +100,7 @@ if config.slang_frontend_enabled:
 if config.libfst_enabled:
   config.available_features.add('libfst')
 
+if config.yosys_lib_enabled:
+  config.available_features.add('yosys')
+
 llvm_config.add_tool_substitutions(tools, tool_dirs)
