@@ -7,12 +7,24 @@
 ## directory-scoped variables that the LLVM helpers read while creating the
 ## target.
 ##
-## There is very little left to do here. The Yosys headers used to demand
-## `-D_YOSYS_`, exceptions, and RTTI on top of C++20; they now self-configure
-## from the installed `kernel/yosys_config.h`, contain no `dynamic_cast` at all,
-## and route their fatal-error paths through `YS_THROW`, which falls back to
-## `abort()` when exceptions are disabled. So CIRCT's own `-fno-exceptions
-## -fno-rtti` are left alone.
+## The Yosys headers used to demand `-D_YOSYS_`, exceptions, and RTTI on top of
+## C++20; they now self-configure from the installed `kernel/yosys_config.h` and
+## contain no `dynamic_cast` at all.
+##
+## Note that `YS_THROW` (`kernel/hashlib.h`) is *not* how Yosys reports ordinary
+## errors: it covers hashlib's internal assertions only, and falls back to
+## `abort()` when exceptions are off. `log_error()` ends in `_Exit(1)` and is not
+## catchable at all. The one recoverable path is `log_cmd_error`, which throws
+## `log_cmd_error_exception` when `log_cmd_error_throw` is set -- catching that
+## is the only way to turn a bad Yosys script into a diagnostic instead of a
+## process exit, and it needs exceptions in the catching translation unit.
+##
+## That is deliberately *not* arranged here. `LLVM_REQUIRES_EH` force-enables
+## RTTI as well (`AddLLVM.cmake`, "Exception handling requires RTTI"), and a
+## translation unit compiled with RTTI that derives from a class built without
+## it -- `mlir::Pass`, `llvm::cl::opt` -- fails to link on missing typeinfo. The
+## one file that catches gets `-fexceptions` on its own, via
+## `set_source_files_properties()`; see `lib/Dialect/RTLIL/Transforms`.
 ##
 ##===----------------------------------------------------------------------===//
 
