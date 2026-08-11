@@ -1,8 +1,8 @@
 // RUN: circt-opt %s --convert-hw-to-rtlil | FileCheck %s
 
-// CHECK-LABEL: @"\\cmpmod_{{[0-9]*}}"
+// CHECK-LABEL: rtlil.module @"\\cmpmod"
 hw.module @cmpmod(in %x: i32) {
-  // CHECK-DAG: [[X:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\x_[[XIN:[0-9]+]]"{{.*}}port_id = 1 {{.*}}port_input = true{{.*}}port_output = false
+  // CHECK-DAG: [[X:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\x"{{.*}}port_id = 1 {{.*}}port_input = true{{.*}}port_output = false
   // CHECK-DAG: [[CONST500:%[0-9]+]] = "rtlil.const"() {{.*}}value = [0 : i8, 0 : i8, 1 : i8, 0 : i8, 1 : i8, 1 : i8, 1 : i8, 1 : i8, 1 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8]{{.*}} : () -> !rtlil<val[32 : i32]>
   // CHECK-DAG: [[CONST700:%[0-9]+]] = "rtlil.const"() {{.*}}value = [0 : i8, 0 : i8, 1 : i8, 1 : i8, 1 : i8, 1 : i8, 0 : i8, 1 : i8, 0 : i8, 1 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8]{{.*}} : () -> !rtlil<val[32 : i32]>
   %1 = hw.constant 500 : i32

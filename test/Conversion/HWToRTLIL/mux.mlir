@@ -1,6 +1,6 @@
 // RUN: circt-opt %s --convert-hw-to-rtlil | FileCheck %s
 
-// CHECK-LABEL: @"\\muxmod_{{[0-9]*}}"
+// CHECK-LABEL: rtlil.module @"\\muxmod"
 hw.module @muxmod(in %select : i1) {
   // CHECK-DAG: [[SELECT:%[0-9]+]] = "rtlil.wire"() {{.*}}port_id = 1 {{.*}}port_input = true{{.*}}port_output = false
   // CHECK-DAG: [[CONST500:%[0-9]+]] = "rtlil.const"() {{.*}}value = [0 : i8, 0 : i8, 1 : i8, 0 : i8, 1 : i8, 1 : i8, 1 : i8, 1 : i8, 1 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8]{{.*}} : () -> !rtlil<val[32 : i32]>

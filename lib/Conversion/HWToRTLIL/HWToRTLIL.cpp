@@ -71,8 +71,7 @@ struct CompRegOpResetConversion : ConversionPatternBase<seq::CompRegOp> {
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
     auto name = op.getInnerSym()
-                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName(),
-                                 op->getLoc())
+                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
     std::vector<Value> connections({adaptor.getClk(), adaptor.getInput(),
                                     adaptor.getReset(), adaptor.getResetValue(),
@@ -95,11 +94,13 @@ struct CompRegOpConversion : ConversionPatternBase<seq::CompRegOp> {
     }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
-    auto name = op.getInnerSym()
-                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName(),
-                                 op->getLoc()) // this should be prefixed
-                                               // by the module probably
-                    : genUniqueLocalName(rewriter);
+    auto name =
+        op.getInnerSym()
+            ? makeGlobal(
+                  rewriter,
+                  op.getInnerSymAttr().getSymName()) // this should be prefixed
+                                                     // by the module probably
+            : genUniqueLocalName(rewriter);
     std::vector<Value> connections(
         {adaptor.getClk(), adaptor.getInput(), resultWire});
     rewriter.create<rtlil::DFFOp>(op.getLoc(), name, std::move(connections),
@@ -120,11 +121,13 @@ struct FirRegOpConversion : ConversionPatternBase<seq::FirRegOp> {
     }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
-    auto name = op.getInnerSym()
-                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName(),
-                                 op->getLoc()) // this should be prefixed
-                                               // by the module probably
-                    : genUniqueLocalName(rewriter);
+    auto name =
+        op.getInnerSym()
+            ? makeGlobal(
+                  rewriter,
+                  op.getInnerSymAttr().getSymName()) // this should be prefixed
+                                                     // by the module probably
+            : genUniqueLocalName(rewriter);
     std::vector<Value> connections(
         {adaptor.getClk(), adaptor.getNext(), resultWire});
     rewriter.create<rtlil::DFFOp>(op.getLoc(), name, std::move(connections),
@@ -146,8 +149,7 @@ struct FirRegOpResetConversion : ConversionPatternBase<seq::FirRegOp> {
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
     auto name = op.getInnerSym()
-                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName(),
-                                 op->getLoc())
+                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
     std::vector<Value> connections({adaptor.getClk(), adaptor.getNext(),
                                     adaptor.getReset(), adaptor.getResetValue(),
@@ -299,12 +301,8 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
     if (!op.getBody().hasOneBlock()) {
       return failure();
     }
-    {
-      auto guard = rtlilContext.lock();
-      rtlilContext.portMap.clear();
-    }
     auto moduleOp = rewriter.create<rtlil::ModuleOp>(
-        op.getLoc(), makeGlobal(rewriter, op.getSymName(), op->getLoc()));
+        op.getLoc(), makeGlobal(rewriter, op.getSymName()));
     mlir::TypeConverter::SignatureConversion converter(op.getNumInputPorts());
     for (size_t input = 0; input < op.getNumInputPorts(); input++) {
       rewriter.setInsertionPoint(moduleOp.getBodyBlock(),
@@ -316,36 +314,30 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
       rewriter.modifyOpInPlace(wire, [&]() {
         wire.setPortId(op.getPortIdForInputId(input) + 1);
         wire.setName(makeGlobal(rewriter,
-                                op.getPortName(op.getPortIdForInputId(input)),
-                                op->getLoc()));
+                                op.getPortName(op.getPortIdForInputId(input))));
       });
       converter.remapInput(input, replacement);
     }
-
-    // Search for hw.output op in the body of the block
-    std::optional<hw::OutputOp> foundOp = std::nullopt;
-    for (auto it = op.getBodyBlock()->rbegin(); it != op.getBodyBlock()->rend();
-         ++it) {
-      auto outputOp = llvm::dyn_cast_or_null<hw::OutputOp>(*it);
-      if (outputOp)
-        foundOp = outputOp;
-    }
-
-    // The module uses outputs.
-    // Save the output information to a map for use in update of the output
-    // wires. Use an unique name for the output wires..
-    if (foundOp) {
-      for (size_t output = 0; output < op.getNumOutputPorts(); output++) {
-        auto guard = rtlilContext.lock();
-        auto [_, inserted] = rtlilContext.portMap.insert(
-            {output, std::pair(op.getPortIdForOutputId(output),
-                               makeGlobal(rewriter,
-                                          op.getPortName(
-                                              op.getPortIdForOutputId(output)),
-                                          op->getLoc()))});
-        if (!inserted)
-          return failure();
-      }
+    // Output port wires are created here rather than by `OutputConversion`,
+    // which by the time it runs has been reparented into `moduleOp` and can no
+    // longer see this `hw.module` to get the port names from. It finds these
+    // wires through `getPortWires()` instead, so nothing has to be carried on
+    // the shared context between the two patterns -- and the conversion driver
+    // does not promise to finish one module before starting the next.
+    for (size_t output = 0; output < op.getNumOutputPorts(); output++) {
+      rewriter.setInsertionPoint(moduleOp.getBodyBlock(),
+                                 moduleOp.getBodyBlock()->end());
+      Value portWire = getTypeConverter()->materializeTargetConversion(
+          rewriter, op->getLoc(),
+          getTypeConverter()->convertType(op.getOutputTypes()[output]), {});
+      auto wire = portWire.getDefiningOp<rtlil::WireOp>();
+      rewriter.modifyOpInPlace(wire, [&]() {
+        wire.setPortInput(false);
+        wire.setPortOutput(true);
+        wire.setPortId(op.getPortIdForOutputId(output) + 1);
+        wire.setName(makeGlobal(
+            rewriter, op.getPortName(op.getPortIdForOutputId(output))));
+      });
     }
     // Apply type conversion to block signature, then inline the converted block
     // into the module.
@@ -365,17 +357,29 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
   LogicalResult
   matchAndRewrite(hw::OutputOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    for (const auto &en : llvm::enumerate(adaptor.getOutputs())) {
-      auto wire = en.value();
-      size_t i = en.index();
-      auto op = wire.getDefiningOp<rtlil::WireOp>();
-      auto guard = rtlilContext.lock();
-      rewriter.modifyOpInPlace(op, [&] {
-        op.setPortOutput(true);
-        op.setPortId(rtlilContext.portMap[i].first + 1);
-        op.setName(rtlilContext.portMap[i].second);
-      });
-    }
+    auto module = op->getParentOfType<rtlil::ModuleOp>();
+    if (!module)
+      return failure();
+
+    // `getPortWires()` is ordered by `port_id`, and `getPortIdForOutputId` is
+    // monotonic in the output index, so the output port wires appear here in
+    // output order.
+    llvm::SmallVector<rtlil::WireOp> outputPorts;
+    for (auto wire : rtlil::getPortWires(module))
+      if (wire.getPortOutput())
+        outputPorts.push_back(wire);
+
+    auto outputs = adaptor.getOutputs();
+    if (outputPorts.size() != outputs.size())
+      return failure();
+
+    // Drive each port wire with a connection rather than relabelling whatever
+    // wire happens to define the value. The value may be an `rtlil.const`, an
+    // input port, or the same wire feeding two outputs -- none of which can be
+    // turned into this output port in place.
+    for (auto [wire, value] : llvm::zip(outputPorts, outputs))
+      rewriter.create<rtlil::WConnectionOp>(op.getLoc(), wire.getResult(),
+                                            value);
     rewriter.eraseOp(op);
     return success();
   }
@@ -392,18 +396,16 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
         op, op.getModuleNameAttr());
     if (!definingOp)
       return failure();
-    for (auto &in : op.getArgNames()) {
-      ports.emplace_back(makeGlobal(
-          rewriter, cast<mlir::StringAttr>(in).strref(),
-          definingOp->getLoc()) // todo find reference in symbol table
-      );
-    }
-    for (auto &out : op.getResultNames()) {
-      ports.emplace_back(makeGlobal(
-          rewriter, cast<mlir::StringAttr>(out).strref(),
-          definingOp->getLoc()) // todo find reference in symbol table
-      );
-    }
+    // The callee's port wires are named `\` + the port name, so the caller can
+    // spell them without looking the callee up. That only holds because
+    // `makeGlobal` no longer appends a uniquing suffix -- when it did, the
+    // callee's identity had to be smuggled in as its Location.
+    for (auto &in : op.getArgNames())
+      ports.emplace_back(
+          makeGlobal(rewriter, cast<mlir::StringAttr>(in).strref()));
+    for (auto &out : op.getResultNames())
+      ports.emplace_back(
+          makeGlobal(rewriter, cast<mlir::StringAttr>(out).strref()));
     llvm::SmallVector<Value> resultWires(adaptor.getInputs());
     for (auto res : op->getResults()) {
       auto type = getTypeConverter()->convertType(res.getType());
@@ -413,10 +415,9 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
     }
 
     rewriter.create<rtlil::InstanceOp>(
-        op->getLoc(),
-        makeGlobal(rewriter, op.getInstanceNameAttr(), op->getLoc()),
-        makeGlobal(rewriter, op.getModuleName(), definingOp->getLoc()),
-        resultWires, rewriter.getArrayAttr(ports), rewriter.getArrayAttr({}));
+        op->getLoc(), makeGlobal(rewriter, op.getInstanceNameAttr()),
+        makeGlobal(rewriter, op.getModuleName()), resultWires,
+        rewriter.getArrayAttr(ports), rewriter.getArrayAttr({}));
     resultWires.erase(resultWires.begin(),
                       resultWires.begin() + op.getNumInputPorts());
     rewriter.replaceOp(op, mlir::ValueRange(resultWires));
@@ -521,7 +522,7 @@ void ConvertHWToRTLILPass::runOnOperation() {
   rtlil::ConversionPatternContext context;
 
   RewritePatternSet patterns(&getContext());
-  rtlil::RTLILTypeConverter converter;
+  rtlil::RTLILTypeConverter converter(context);
   populateHWToRTLILConversionPatterns(converter, context, patterns);
   // No topological sort afterwards: an `rtlil.module` body is a graph region,
   // so a cell may precede the `rtlil.wire` it drives.

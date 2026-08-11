@@ -53,8 +53,10 @@ inline static OpType lookupSymbolWalkTables(mlir::Operation *from,
 }
 
 struct ConversionPatternContext {
-  std::unordered_map<int, std::pair<int, mlir::StringAttr>> portMap;
-  llvm::DenseMap<mlir::Location, int> globalMap;
+  /// Supplies the number in auto-generated `$<n>` RTLIL names. Monotonic across
+  /// the whole conversion, which is stronger than RTLIL needs -- names are
+  /// unique per module -- but costs nothing and keeps the patterns independent
+  /// of the order the conversion driver happens to visit modules in.
   std::atomic<unsigned int> nameCtr = 0;
   auto lock() { return std::lock_guard<std::recursive_mutex>(l); }
 
@@ -76,12 +78,13 @@ class RTLILTypeConverter : public mlir::TypeConverter {
 
   static std::optional<mlir::Type> convertClock(circt::seq::ClockType t);
 
-  static mlir::Value materializeInt(mlir::OpBuilder &builder,
-                                    circt::rtlil::MValueType t,
-                                    mlir::ValueRange vals, mlir::Location loc);
-
 public:
-  RTLILTypeConverter();
+  /// Takes the shared context so that materialized wires can be given a unique
+  /// auto-generated name up front. Naming them from `printAsOperand` instead --
+  /// as this used to -- restarts numbering on a detached value, and two wires
+  /// that end up with the same name make Yosys abort the process when the
+  /// design is exported.
+  explicit RTLILTypeConverter(ConversionPatternContext &rtlilContext);
   void convertSignature() {}
 };
 
@@ -120,16 +123,19 @@ public:
     return rtlil::ParameterAttr::get(Super::getContext(), getStr(key), val);
   }
 
+  /// The RTLIL name for something the user named: the `\` sigil (RTLIL's
+  /// "public") plus the name verbatim.
+  ///
+  /// Deliberately no uniquing suffix. RTLIL identifiers are scoped per module,
+  /// so two modules may each have a `\x`, and Yosys carries `\`-prefixed names
+  /// through `opt`, `techmap` and `abc` untouched while rewriting `$`-prefixed
+  /// ones freely. A suffix would make every name in a design coming back from
+  /// Yosys unrecognizable and would force `hierarchy -auto-top`, in exchange
+  /// for nothing: a real collision is caught by the `rtlil.module` verifier,
+  /// which is a better outcome than mangling every name to avoid it.
   template <typename S>
-  mlir::StringAttr makeGlobal(mlir::ConversionPatternRewriter &r, S s,
-                              Location loc) const {
-    auto guard = rtlilContext.lock();
-    auto [it, inserted] = rtlilContext.globalMap.insert({loc, 0});
-    if (inserted) {
-      it->second = ++rtlilContext.nameCtr;
-    }
-    auto res = llvm::formatv("\\{0}_{1}", s, it->second);
-    return r.getStringAttr(res);
+  mlir::StringAttr makeGlobal(mlir::ConversionPatternRewriter &r, S s) const {
+    return r.getStringAttr(llvm::formatv("\\{0}", s));
   }
 
   template <typename S>

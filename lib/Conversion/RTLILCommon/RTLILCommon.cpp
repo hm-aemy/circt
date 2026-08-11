@@ -33,27 +33,29 @@ RTLILTypeConverter::convertClock(circt::seq::ClockType t) {
       mlir::IntegerAttr::get(mlir::IntegerType::get(t.getContext(), 32), 1));
 }
 
-mlir::Value RTLILTypeConverter::materializeInt(mlir::OpBuilder &builder,
-                                               circt::rtlil::MValueType t,
-                                               mlir::ValueRange vals,
-                                               mlir::Location loc) {
-  bool isInput = vals.empty();
-  if (vals.size() > 1) {
-    return {};
-  }
-  mlir::StringAttr name = builder.getStringAttr("undefined");
-  if (!isInput) {
-    name = builder.getStringAttr(llvm::formatv("${0}", asOperandRaw(vals[0])));
-  }
-
-  return builder.create<rtlil::WireOp>(loc, t, name, 0, 0, 0, isInput, 0, 0);
-}
-
-RTLILTypeConverter::RTLILTypeConverter() : mlir::TypeConverter() {
+RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
+    : mlir::TypeConverter() {
   addConversion(convertInt);
   addConversion(convertInteger);
   addConversion(convertClock);
-  addTargetMaterialization(materializeInt);
+  // Materializing with no input value means "this stands for a module input",
+  // which is the one case that produces a port wire. Everything else is an
+  // ordinary internal wire.
+  //
+  // Every wire gets a unique `$<n>` name here rather than a placeholder;
+  // patterns that know a better name overwrite it. `InstanceConversion` does
+  // not, so without this its result wires would all share one name.
+  addTargetMaterialization([&rtlilContext](mlir::OpBuilder &builder,
+                                           circt::rtlil::MValueType t,
+                                           mlir::ValueRange vals,
+                                           mlir::Location pos) -> mlir::Value {
+    bool isInput = vals.empty();
+    if (vals.size() > 1)
+      return {};
+    auto name =
+        builder.getStringAttr(llvm::formatv("${0}", ++rtlilContext.nameCtr));
+    return builder.create<rtlil::WireOp>(pos, t, name, 0, 0, 0, isInput, 0, 0);
+  });
 }
 
 } // namespace circt::rtlil
