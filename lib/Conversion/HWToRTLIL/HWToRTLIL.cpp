@@ -16,7 +16,6 @@
 #include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Dialect/Seq/SeqOps.h"
 #include "circt/Support/LLVM.h"
-#include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -27,9 +26,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassManager.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Support/TypeID.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
@@ -39,7 +36,6 @@
 #include <memory>
 #include <optional>
 #include <type_traits>
-#include <unordered_map>
 
 namespace circt {
 #define GEN_PASS_DEF_CONVERTHWTORTLIL
