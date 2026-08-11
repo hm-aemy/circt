@@ -424,7 +424,7 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
       resultWires.emplace_back(wire);
     }
 
-    rewriter.create<rtlil::IntanceOp>(
+    rewriter.create<rtlil::InstanceOp>(
         op->getLoc(),
         makeGlobal(rewriter, op.getInstanceNameAttr(), op->getLoc()),
         makeGlobal(rewriter, op.getModuleName(), definingOp->getLoc()),

@@ -275,7 +275,7 @@ def ALDFFOp : RTLILOp<"aldff", [DeclareOpInterfaceMethods<CellOpInterface>, Fixe
                       }], "getParameters()">;
 }
 
-def IntanceOp : RTLILOp<"instance", [DeclareOpInterfaceMethods<CellOpInterface>]> {
+def InstanceOp : RTLILOp<"instance", [DeclareOpInterfaceMethods<CellOpInterface>]> {
   let arguments = (ins StrAttr:$name,
                        FlatSymbolRefAttr:$type,
                        Variadic<RTLILValue>:$connections,
