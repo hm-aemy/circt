@@ -49,3 +49,7 @@ add_subdirectory(VerifToSV)
 if(CIRCT_SLANG_FRONTEND_ENABLED)
   add_subdirectory(ImportVerilog)
 endif()
+
+if(CIRCT_YOSYS_LIB_ENABLED)
+  add_subdirectory(ExportRTLIL)
+endif()

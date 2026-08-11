@@ -1,6 +1,6 @@
 ; RUN: circt-yosys | FileCheck %s
 ; RUN: circt-yosys --help | FileCheck %s --check-prefix=HELP
-; REQUIRES: yosys
+; REQUIRES: libyosys
 
 ; Yosys' own log goes to stderr, so stdout carries only the tool's output and
 ; needs no filtering here.
