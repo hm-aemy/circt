@@ -11,8 +11,8 @@
 // and parameters in the shape Yosys wants, so there is no case per Comb or HW
 // operation here -- that knowledge lives in `convert-hw-to-rtlil`.
 //
-// The one thing this file does that the prototype in `tools/circt-yosys` did
-// not is check its input first. Yosys signals a duplicate name or a malformed
+// The one thing this file does that its proof-of-concept predecessor did not is
+// check its input first. Yosys signals a duplicate name or a malformed
 // identifier with `log_error`, which ends the process; there is no way to catch
 // it and no diagnostic to show the user. So `validate()` runs to completion
 // before a single Yosys object is created, and everything it can reject becomes
