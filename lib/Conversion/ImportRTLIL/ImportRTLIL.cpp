@@ -22,6 +22,7 @@
 #include "circt/Dialect/RTLIL/RTLIL.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
+#include "circt/Yosys/Yosys.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -32,7 +33,9 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/SourceMgr.h"
 
+#include <sstream>
 #include <string>
 
 // Yosys headers last; everything stays explicitly `Yosys::`-qualified.
@@ -391,4 +394,48 @@ LogicalResult circt::rtlil::importRTLIL(Yosys::RTLIL::Design *design,
   module.getContext()->loadDialect<rtlil::RTLILDialect>();
   Importer importer(module);
   return importer.importDesign(design);
+}
+
+//===----------------------------------------------------------------------===//
+// Translation Registration
+//===----------------------------------------------------------------------===//
+
+void circt::rtlil::registerImportRTLILTranslation() {
+  static mlir::TranslateToMLIRRegistration fromRTLIL(
+      "import-rtlil", "import an RTLIL (.il) file",
+      [](llvm::SourceMgr &sourceMgr,
+         MLIRContext *context) -> OwningOpRef<mlir::ModuleOp> {
+        if (auto error = circt::yosys::initialize()) {
+          mlir::emitError(UnknownLoc::get(context))
+              << "failed to initialize Yosys: "
+              << llvm::toString(std::move(error));
+          return {};
+        }
+
+        // Yosys' own RTLIL frontend does the parsing -- writing a second `.il`
+        // parser on the MLIR side is exactly what linking the library avoids.
+        // Passing a non-null stream makes `frontend_call` ignore the filename,
+        // so the buffer lit hands us never has to reach the filesystem.
+        const auto *buffer =
+            sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
+        std::istringstream stream(buffer->getBuffer().str());
+        std::istream *streamPtr = &stream;
+
+        Yosys::RTLIL::Design design;
+        // A malformed `.il` reaches `log_error` and ends the process; the hook
+        // installed by `yosys::initialize()` is the only thing that gets a
+        // message out first.
+        Yosys::Frontend::frontend_call(&design, streamPtr,
+                                       buffer->getBufferIdentifier().str(),
+                                       "rtlil");
+
+        OwningOpRef<mlir::ModuleOp> module(
+            mlir::ModuleOp::create(UnknownLoc::get(context)));
+        if (failed(importRTLIL(&design, module.get())))
+          return {};
+        return module;
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<circt::rtlil::RTLILDialect>();
+      });
 }

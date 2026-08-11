@@ -11,6 +11,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <iostream>
 
@@ -120,6 +121,19 @@ llvm::Error circt::yosys::initialize() {
   // be discarded, so register a stream for the rest.
   Yosys::log_streams.push_back(&std::cerr);
   Yosys::log_error_stderr = true;
+
+  // `log_error()` ends in `_Exit(1)`: no unwinding, no destructors, no way for
+  // a caller to recover. `log_error_atexit` is the one hook that runs first, so
+  // use it to say what happened and that the exit was Yosys' decision -- the
+  // alternative is a tool that exits 1 with nothing on stderr to explain it.
+  //
+  // Note the explicit flush: `_Exit` will not run `raw_ostream` destructors.
+  Yosys::log_error_atexit = []() {
+    llvm::errs() << "error: yosys aborted: " << Yosys::log_last_error << "\n"
+                 << "note: yosys ends the process on internal errors, so this "
+                    "could not be turned into a diagnostic\n";
+    llvm::errs().flush();
+  };
 
   state.initialized = true;
   state.dataDir = std::move(dataDir);

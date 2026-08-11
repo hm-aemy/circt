@@ -36,6 +36,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -414,4 +415,34 @@ LogicalResult circt::rtlil::exportRTLIL(mlir::ModuleOp module,
       return failure();
   }
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Translation Registration
+//===----------------------------------------------------------------------===//
+
+void circt::rtlil::registerExportRTLILTranslation() {
+  static mlir::TranslateFromMLIRRegistration toRTLIL(
+      "export-rtlil", "export the RTLIL dialect as an RTLIL (.il) file",
+      [](mlir::ModuleOp module, llvm::raw_ostream &os) -> LogicalResult {
+        if (auto error = circt::yosys::initialize())
+          return module.emitError("failed to initialize Yosys: ")
+                 << llvm::toString(std::move(error));
+
+        Yosys::RTLIL::Design design;
+        if (failed(exportRTLIL(module, &design)))
+          return failure();
+
+        // Yosys' own RTLIL backend does the printing. It writes to a
+        // `std::ostream`, so the result is buffered and copied across rather
+        // than streamed.
+        std::ostringstream stream;
+        std::ostream *streamPtr = &stream;
+        Yosys::Backend::backend_call(&design, streamPtr, "<stdout>", "rtlil");
+        os << stream.str();
+        return success();
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<circt::rtlil::RTLILDialect>();
+      });
 }
