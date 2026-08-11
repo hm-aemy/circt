@@ -7,33 +7,47 @@
 //===----------------------------------------------------------------------===//
 //
 // A proof of concept for the in-process Yosys library: start from a CIRCT
-// `hw.module`, hand-build the equivalent Yosys design, run real Yosys passes
-// over it, and read the result back -- all in one process, without writing a
-// file or spawning the `yosys` binary.
+// `hw.module`, lower it to the RTLIL dialect with `convert-hw-to-rtlil`, hand
+// the result to Yosys as a real `RTLIL::Design`, run Yosys passes over it, and
+// read the result back -- all in one process, without writing a file or
+// spawning the `yosys` binary.
 //
 // The point is that both halves live in the same translation unit: MLIR/CIRCT
-// headers and Yosys headers coexist, and an `mlir::Value` can be used as the key
-// of a map to an `RTLIL::Wire`. This is deliberately *not* a conversion pass.
-// The input is a hardcoded module and the translation handles exactly the two
-// operations it contains; a real conversion has to deal with the whole of Comb
-// and HW, multi-operand ops, non-integer types, instances, and registers.
+// headers and Yosys headers coexist, and an `mlir::Value` can be used as the
+// key of a map to an `RTLIL::SigSpec`. What this file does *not* contain is any
+// hardware-specific knowledge: that all sits in the conversion pass, and what
+// is left here is a mechanical walk over the RTLIL dialect. `rtlil.wire`
+// becomes an `RTLIL::Wire`, `rtlil.const` an `RTLIL::Const`, and every op
+// implementing `rtlil::CellOpInterface` an `RTLIL::Cell` -- the dialect already
+// carries the cell type, port names, and parameters Yosys wants, so the walk
+// does not grow a case per Comb/HW operation.
 //
 //===----------------------------------------------------------------------===//
 
-#include "circt/Dialect/Comb/CombOps.h"
+#include "circt/Conversion/HWToRTLIL.h"
+#include "circt/Dialect/Comb/CombDialect.h"
+#include "circt/Dialect/HW/HWDialect.h"
 #include "circt/Dialect/HW/HWOps.h"
-#include "circt/Dialect/HW/HWTypes.h"
+#include "circt/Dialect/RTLIL/RTLIL.h"
+#include "circt/Dialect/RTLIL/RTLILOps.h"
+#include "circt/Dialect/RTLIL/RTLILTypes.h"
+#include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Support/Version.h"
 #include "circt/Yosys/Yosys.h"
 
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <string>
+#include <vector>
 
 // The Yosys headers come last. Everything below stays explicitly qualified with
 // `Yosys::`; Yosys' own sources use the `USING_YOSYS_NAMESPACE` macro instead,
@@ -59,77 +73,187 @@ static constexpr llvm::StringRef demoIR = R"MLIR(
 /// The passes to run over the design once it has been built. `techmap` reads a
 /// technology library out of Yosys' data directory and `abc` execs the
 /// `yosys-abc` binary, so getting through this list also proves both runtime
-/// paths were resolved correctly.
+/// paths were resolved correctly. `-auto-top` because the conversion renames
+/// modules -- `@demo` comes out as `\demo_<n>` -- so there is no name to
+/// hardcode here.
 static constexpr llvm::StringRef passPipeline[] = {
-    "hierarchy -check -top demo", "opt", "techmap", "abc -g AND,OR,XOR",
+    "hierarchy -check -auto-top", "opt", "techmap", "abc -g AND,OR,XOR",
     "opt_clean"};
 
-/// Translate `hwModule` into a fresh RTLIL module inside `design`.
-///
-/// Only what the hardcoded input above needs: integer-typed ports, two-operand
-/// `comb.and`/`comb.or`, and `hw.output`. Anything else is reported rather than
-/// silently ignored, because a demo that quietly drops operations would be worse
-/// than one that stops.
-static Yosys::RTLIL::Module *buildRtlilFrom(Yosys::RTLIL::Design *design,
-                                            hw::HWModuleOp hwModule) {
-  auto *module = design->addModule("\\" + hwModule.getModuleName().str());
-  Block *body = hwModule.getBodyBlock();
+/// RTLIL identifiers carry their own escaping: the dialect already emits names
+/// with the leading `\` (public) or `$` (auto-generated) that Yosys expects, so
+/// they go through unchanged.
+static Yosys::RTLIL::IdString id(llvm::StringRef name) {
+  return Yosys::RTLIL::IdString(std::string_view(name.data(), name.size()));
+}
 
-  // Ports first. `mlir::Value` is a handle, so it works as a DenseMap key
-  // directly -- this map is the whole of the translation state.
-  llvm::DenseMap<Value, Yosys::RTLIL::Wire *> wires;
-  llvm::SmallVector<Yosys::RTLIL::Wire *> outputWires;
-  for (const hw::PortInfo &port : hwModule.getPortList()) {
-    auto *wire = module->addWire("\\" + port.getName().str(),
-                                 hw::getBitWidth(port.type));
-    if (port.isInput()) {
-      wire->port_input = true;
-      wires[body->getArgument(port.argNum)] = wire;
-    } else {
-      wire->port_output = true;
-      outputWires.push_back(wire);
-    }
+static Yosys::RTLIL::State toState(rtlil::StateEnum state) {
+  switch (state) {
+  case rtlil::StateEnum::S0:
+    return Yosys::RTLIL::State::S0;
+  case rtlil::StateEnum::S1:
+    return Yosys::RTLIL::State::S1;
+  case rtlil::StateEnum::Sx:
+    return Yosys::RTLIL::State::Sx;
+  case rtlil::StateEnum::Sz:
+    return Yosys::RTLIL::State::Sz;
+  case rtlil::StateEnum::Sa:
+    return Yosys::RTLIL::State::Sa;
   }
+  llvm_unreachable("unhandled RTLIL state");
+}
+
+namespace {
+/// Translates the RTLIL-dialect ops of one `builtin.module` into a Yosys
+/// module. Every value in that body is defined by an `rtlil.wire` or an
+/// `rtlil.const`, so a map from `mlir::Value` to `RTLIL::SigSpec` is the whole
+/// of the translation state.
+class ModuleEmitter {
+public:
+  ModuleEmitter(Yosys::RTLIL::Design *design) : design(design) {}
+
+  /// Emit `op` into the design, or return null after reporting why not.
+  Yosys::RTLIL::Module *emit(mlir::ModuleOp op);
+
+private:
+  /// The signal a value stands for, or null if it was never defined. The
+  /// conversion pass leaves the body topologically sorted, so a definition is
+  /// always seen before its uses.
+  const Yosys::RTLIL::SigSpec *lookup(Value value, Operation *user);
+
+  bool emitWire(rtlil::WireOp op);
+  bool emitConst(rtlil::ConstOp op);
+  bool emitConnection(rtlil::WConnectionOp op);
+  bool emitCell(rtlil::CellOpInterface op);
+
+  Yosys::RTLIL::Design *design;
+  Yosys::RTLIL::Module *module = nullptr;
+  llvm::DenseMap<Value, Yosys::RTLIL::SigSpec> signals;
+};
+} // namespace
+
+Yosys::RTLIL::Module *ModuleEmitter::emit(mlir::ModuleOp op) {
+  auto name = op.getSymName();
+  if (!name) {
+    op.emitError("module has no name to give the RTLIL module");
+    return nullptr;
+  }
+  if (design->has(id(*name))) {
+    op.emitError("design already contains a module named ") << *name;
+    return nullptr;
+  }
+
+  module = design->addModule(id(*name));
+  signals.clear();
+
+  for (Operation &nested : op.getBody()->getOperations()) {
+    bool ok = false;
+    if (auto wire = dyn_cast<rtlil::WireOp>(nested))
+      ok = emitWire(wire);
+    else if (auto constant = dyn_cast<rtlil::ConstOp>(nested))
+      ok = emitConst(constant);
+    else if (auto connection = dyn_cast<rtlil::WConnectionOp>(nested))
+      ok = emitConnection(connection);
+    else if (auto cell = dyn_cast<rtlil::CellOpInterface>(nested))
+      ok = emitCell(cell);
+    else
+      nested.emitError("no RTLIL mapping for this operation");
+    if (!ok)
+      return nullptr;
+  }
+
+  // Collects the wires flagged as ports into `module->ports` and renumbers
+  // their `port_id`s; the dialect only records the flags and the ordering.
   module->fixup_ports();
+  return module;
+}
 
-  // Then the body, in order. Every op defines at most one result, and operands
-  // are always already in the map because an `hw.module` body is a graph region
-  // that this demo keeps in topological order.
-  unsigned cellIndex = 0;
-  for (Operation &op : body->getOperations()) {
-    if (auto outputOp = dyn_cast<hw::OutputOp>(op)) {
-      for (auto [wire, value] : llvm::zip(outputWires, outputOp.getOperands()))
-        module->connect(wire, wires.lookup(value));
-      continue;
-    }
+const Yosys::RTLIL::SigSpec *ModuleEmitter::lookup(Value value,
+                                                   Operation *user) {
+  auto it = signals.find(value);
+  if (it == signals.end()) {
+    user->emitError("operand has no RTLIL signal; expected it to be defined by "
+                    "an rtlil.wire or rtlil.const");
+    return nullptr;
+  }
+  return &it->second;
+}
 
-    // `comb.and`/`comb.or` are variadic; the RTLIL cells are strictly binary,
-    // so a real conversion would decompose. Here we only accept what we emit.
-    if (op.getNumOperands() != 2 || op.getNumResults() != 1) {
-      llvm::WithColor::error(llvm::errs(), "circt-yosys")
-          << "unsupported operation: " << op << "\n";
-      return nullptr;
-    }
-    auto *lhs = wires.lookup(op.getOperand(0));
-    auto *rhs = wires.lookup(op.getOperand(1));
-    auto *result =
-        module->addWire("$" + std::to_string(cellIndex),
-                        hw::getBitWidth(op.getResult(0).getType()));
-    wires[op.getResult(0)] = result;
+bool ModuleEmitter::emitWire(rtlil::WireOp op) {
+  auto *wire = module->addWire(id(op.getName()), op.getWidth().getInt());
+  wire->port_id = op.getPortId();
+  wire->port_input = op.getPortInput();
+  wire->port_output = op.getPortOutput();
+  wire->start_offset = op.getStartOffset();
+  wire->upto = op.getUpto();
+  wire->is_signed = op.getIsSigned();
+  signals.try_emplace(op.getResult(), wire);
+  return true;
+}
 
-    auto name = "$cell_" + std::to_string(cellIndex++);
-    if (isa<comb::AndOp>(op))
-      module->addAnd(name, lhs, rhs, result);
-    else if (isa<comb::OrOp>(op))
-      module->addOr(name, lhs, rhs, result);
-    else {
-      llvm::WithColor::error(llvm::errs(), "circt-yosys")
-          << "no RTLIL mapping for: " << op << "\n";
-      return nullptr;
-    }
+bool ModuleEmitter::emitConst(rtlil::ConstOp op) {
+  std::vector<Yosys::RTLIL::State> bits;
+  bits.reserve(op.getValue().size());
+  // Least significant bit first, the order both the dialect attribute and
+  // `RTLIL::Const` use.
+  for (Attribute bit : op.getValue())
+    bits.push_back(toState(cast<rtlil::StateEnumAttr>(bit).getValue()));
+  signals.try_emplace(op.getResult(),
+                      Yosys::RTLIL::Const(std::move(bits)));
+  return true;
+}
+
+bool ModuleEmitter::emitConnection(rtlil::WConnectionOp op) {
+  const auto *lhs = lookup(op.getLhs(), op);
+  const auto *rhs = lookup(op.getRhs(), op);
+  if (!lhs || !rhs)
+    return false;
+  module->connect(*lhs, *rhs);
+  return true;
+}
+
+bool ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
+  ArrayAttr ports = op.getCellPorts();
+  OperandRange connections = op.getCellConnections();
+  if (ports.size() != connections.size()) {
+    op->emitError("cell has ")
+        << ports.size() << " port names but " << connections.size()
+        << " connections";
+    return false;
   }
 
-  return module;
+  auto *cell = module->addCell(id(op.getCellName()), id(op.getCellType()));
+  for (auto [port, value] : llvm::zip(ports, connections)) {
+    const auto *signal = lookup(value, op);
+    if (!signal)
+      return false;
+    cell->setPort(id(cast<StringAttr>(port).getValue()), *signal);
+  }
+  for (Attribute parameter : op.getCellParameters()) {
+    auto param = cast<rtlil::ParameterAttr>(parameter);
+    IntegerAttr value = param.getValue();
+    cell->setParam(id(param.getName().getValue()),
+                   Yosys::RTLIL::Const(value.getInt(),
+                                       value.getType().getIntOrFloatBitWidth()));
+  }
+  return true;
+}
+
+/// Translate every module of `mlirModule` -- the conversion pass turns each
+/// `hw.module` into a named `builtin.module` of RTLIL ops -- into `design`.
+/// Returns the module that was emitted last, for reporting.
+static Yosys::RTLIL::Module *buildDesign(Yosys::RTLIL::Design *design,
+                                         mlir::ModuleOp mlirModule) {
+  Yosys::RTLIL::Module *last = nullptr;
+  for (auto nested : mlirModule.getOps<mlir::ModuleOp>()) {
+    ModuleEmitter emitter(design);
+    last = emitter.emit(nested);
+    if (!last)
+      return nullptr;
+  }
+  if (!last)
+    mlirModule.emitError("no modules to hand to Yosys");
+  return last;
 }
 
 /// Print how many cells of each type the module contains, in a stable order.
@@ -157,13 +281,15 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(
       argc, argv,
       "circt-yosys - drive Yosys as a library from CIRCT\n\n"
-      "  Builds a hardcoded hw.module, translates it to a Yosys design, runs\n"
-      "  Yosys passes over it, and prints the resulting cells. Yosys' own log\n"
-      "  goes to stderr; this tool's output goes to stdout.\n");
+      "  Builds a hardcoded hw.module, lowers it to the RTLIL dialect,\n"
+      "  translates that to a Yosys design, runs Yosys passes over it, and\n"
+      "  prints the resulting cells. Yosys' own log goes to stderr; this\n"
+      "  tool's output goes to stdout.\n");
 
   // The CIRCT half.
   MLIRContext context;
-  context.loadDialect<hw::HWDialect, comb::CombDialect>();
+  context.loadDialect<hw::HWDialect, comb::CombDialect, seq::SeqDialect,
+                      rtlil::RTLILDialect>();
   OwningOpRef<ModuleOp> mlirModule = parseSourceString<ModuleOp>(demoIR,
                                                                  &context);
   if (!mlirModule) {
@@ -176,6 +302,18 @@ int main(int argc, char **argv) {
 
   llvm::outs() << "input hw.module:\n";
   hwModule.print(llvm::outs());
+  llvm::outs() << "\n\n";
+
+  PassManager pm(&context);
+  pm.addPass(createConvertHWToRTLIL());
+  if (failed(pm.run(*mlirModule))) {
+    llvm::WithColor::error(llvm::errs(), "circt-yosys")
+        << "failed to lower to the RTLIL dialect\n";
+    return 1;
+  }
+
+  llvm::outs() << "after convert-hw-to-rtlil:\n";
+  mlirModule->print(llvm::outs());
   llvm::outs() << "\n\n";
 
   // The Yosys half. Registers Yosys' built-in passes and points it at its data
@@ -195,7 +333,7 @@ int main(int argc, char **argv) {
                << "\n";
 
   Yosys::RTLIL::Design design;
-  auto *module = buildRtlilFrom(&design, hwModule);
+  auto *module = buildDesign(&design, *mlirModule);
   if (!module) {
     yosys::shutdown();
     return 1;

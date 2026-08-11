@@ -15,10 +15,14 @@ target_link_libraries(circt-yosys
   PRIVATE
   CIRCTComb
   CIRCTHW
+  CIRCTHWToRTLIL
+  CIRCTRTLIL
+  CIRCTSeq
   CIRCTSupport
   CIRCTYosys
   MLIRIR
   MLIRParser
+  MLIRPass
   Yosys::libyosys
 )
 
