@@ -18,3 +18,10 @@ set(LLVM_TARGET_DEFINITIONS RTLILOps.td)
 mlir_tablegen(RTLILInterfaces.h.inc -gen-op-interface-decls)
 mlir_tablegen(RTLILInterfaces.cpp.inc -gen-op-interface-defs)
 add_public_tablegen_target(MLIRRTLILInterfaceDefsIncGen)
+# The RTLIL passes need libyosys, so they are declared here rather than in
+# `circt/Conversion/Passes.td` -- see RTLILPasses.td for why. The tablegen
+# itself is unconditional; only the library that implements the passes is
+# gated on CIRCT_YOSYS_LIB_ENABLED.
+set(LLVM_TARGET_DEFINITIONS RTLILPasses.td)
+mlir_tablegen(RTLILPasses.h.inc -gen-pass-decls)
+add_public_tablegen_target(CIRCTRTLILTransformsIncGen)

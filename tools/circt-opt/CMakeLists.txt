@@ -1,6 +1,12 @@
 get_property(dialect_libs GLOBAL PROPERTY CIRCT_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY CIRCT_CONVERSION_LIBS)
 
+# `RTLILPasses.h` names no Yosys type, so this directory needs the define but
+# not `YosysCompilerOptions`. CIRCTRTLILTransforms arrives via ${dialect_libs}.
+if(CIRCT_YOSYS_LIB_ENABLED)
+  add_compile_definitions(CIRCT_YOSYS_LIB_ENABLED)
+endif()
+
 set(LLVM_LINK_COMPONENTS
   Support
 )

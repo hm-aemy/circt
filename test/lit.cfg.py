@@ -105,6 +105,5 @@ if config.yosys_lib_enabled:
   # `yosys` to mean "the yosys binary is on PATH", which is a different
   # thing from "CIRCT was linked against libyosys".
   config.available_features.add('libyosys')
-  tools.append('circt-yosys')
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

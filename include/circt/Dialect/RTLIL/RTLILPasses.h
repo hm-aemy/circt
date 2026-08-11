@@ -20,6 +20,18 @@
 
 #include <memory>
 
+#include "circt/Dialect/RTLIL/RTLIL.h"
 #include "mlir/Pass/Pass.h"
+
+namespace circt {
+namespace rtlil {
+
+/// Generate the code for registering passes.
+#define GEN_PASS_DECL
+#define GEN_PASS_REGISTRATION
+#include "circt/Dialect/RTLIL/RTLILPasses.h.inc"
+
+} // namespace rtlil
+} // namespace circt
 
 #endif

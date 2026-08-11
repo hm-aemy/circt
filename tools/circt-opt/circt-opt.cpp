@@ -36,6 +36,10 @@
 #include "mlir/Transforms/Passes.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
+#ifdef CIRCT_YOSYS_LIB_ENABLED
+#include "circt/Dialect/RTLIL/RTLILPasses.h"
+#endif
+
 // Defined in the test directory, no public header.
 namespace circt {
 namespace test {
@@ -67,6 +71,13 @@ int main(int argc, char **argv) {
 
   circt::registerAllDialects(registry);
   circt::registerAllPasses();
+  // Registered here rather than through `InitAllPasses.h`: these passes need
+  // libyosys, and the generated registration function names every pass
+  // unconditionally, so a build without `CIRCT_YOSYS_LIB_ENABLED` would not
+  // link. Same arrangement ImportVerilog uses for slang.
+#ifdef CIRCT_YOSYS_LIB_ENABLED
+  circt::rtlil::registerPasses();
+#endif
 
   mlir::func::registerInlinerExtension(registry);
   mlir::LLVM::registerInlinerInterface(registry);

@@ -16,3 +16,7 @@ add_circt_dialect_library(CIRCTRTLIL
   LINK_LIBS PUBLIC
   MLIRIR
 )
+
+if(CIRCT_YOSYS_LIB_ENABLED)
+  add_subdirectory(Transforms)
+endif()

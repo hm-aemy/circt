@@ -27,6 +27,3 @@ if(CIRCT_SLANG_FRONTEND_ENABLED)
   add_subdirectory(circt-verilog-lsp-server)
 endif()
 
-if(CIRCT_YOSYS_LIB_ENABLED)
-  add_subdirectory(circt-yosys)
-endif()
