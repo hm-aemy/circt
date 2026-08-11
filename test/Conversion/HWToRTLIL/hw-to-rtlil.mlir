@@ -1,6 +1,8 @@
 // RUN: circt-opt %s --convert-hw-to-rtlil | FileCheck %s
 
-// CHECK-LABEL: @"\\test_{{[0-9]*}}"
+// Each hw.module becomes an rtlil.module: a symbol-carrying op with a graph
+// region, not a nested builtin.module.
+// CHECK-LABEL: rtlil.module @"\\test_{{[0-9]*}}"
 hw.module @test(in %arg0: i32, in %arg1: i32, in %arg2: i32, in %arg3: i32, out out0: i32, out out1: i32) {
   // CHECK-DAG: "rtlil.and"(%[[OP1:.+]], %[[OP2:.+]], %[[RES1:.+]]) <{{.*name = "\$[0-9]+".*type = "\$and".*}}> : (!rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>) -> ()
   // CHECK-DAG: "rtlil.and"(%[[OP3:.+]], %[[OP4:.+]], %[[RES2:.+]]) <{{.*name = "\$[0-9]+".*type = "\$and".*}}> : (!rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>) -> ()

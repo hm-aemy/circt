@@ -1,6 +1,6 @@
 // RUN: circt-opt %s --verify-diagnostics
 
-module @"\\add" {
+rtlil.module @"\\add" {
 
 }
 
@@ -8,9 +8,12 @@ module @"\\add" {
 // (`RTLIL::Module::add()` asserts on `count_id(name) == 0`), so every name in
 // here is distinct -- an exporter handing duplicates to Yosys would take the
 // process down with it.
-module @top {
+rtlil.module @"\\top" {
   %1 = "rtlil.wire"() <{name="$1", is_signed = false}> : () -> !rtlil<val[32 : i32]>
-  %2 = "rtlil.wire"() <{name="$2", is_signed = true, port_input = false, port_output = true, upto = true, port_id = 10 : i32, start_offset = 3 : i32}> : () -> !rtlil<val[64 : i32]>
+  // A fully attributed wire. `port_id` is 1 rather than an arbitrary number
+  // because ports must be numbered exactly 1..N -- `fixup_ports()` renumbers
+  // anything else behind the exporter's back.
+  %2 = "rtlil.wire"() <{name="$2", is_signed = true, port_input = false, port_output = true, upto = true, port_id = 1 : i32, start_offset = 3 : i32}> : () -> !rtlil<val[64 : i32]>
 
   %3 = "rtlil.const"() <{value = [0 : i8, 1 : i8, 2 : i8, 3 : i8, 4 : i8]}> : () -> !rtlil<val[5 : i32]>
   %4 = "rtlil.wire"() <{name="$4", is_signed = false}> : () -> !rtlil<val[32 : i32]>

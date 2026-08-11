@@ -303,13 +303,12 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
       auto guard = rtlilContext.lock();
       rtlilContext.portMap.clear();
     }
-
-    auto moduleOp = rewriter.create<mlir::ModuleOp>(
+    auto moduleOp = rewriter.create<rtlil::ModuleOp>(
         op.getLoc(), makeGlobal(rewriter, op.getSymName(), op->getLoc()));
     mlir::TypeConverter::SignatureConversion converter(op.getNumInputPorts());
     for (size_t input = 0; input < op.getNumInputPorts(); input++) {
-      rewriter.setInsertionPoint(moduleOp.getBody(),
-                                 moduleOp.getBody()->begin());
+      rewriter.setInsertionPoint(moduleOp.getBodyBlock(),
+                                 moduleOp.getBodyBlock()->begin());
       Value replacement = getTypeConverter()->materializeTargetConversion(
           rewriter, op->getLoc(),
           getTypeConverter()->convertType(op.getInputTypes()[input]), {});
@@ -353,20 +352,9 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
     rewriter.applySignatureConversion(op.getBodyBlock(), converter,
                                       getTypeConverter());
     rewriter.inlineBlockBefore(&op.getBody().getBlocks().front(),
-                               moduleOp.getBody(), moduleOp.getBody()->end());
+                               moduleOp.getBodyBlock(),
+                               moduleOp.getBodyBlock()->end());
     rewriter.replaceOp(op, moduleOp);
-    return success();
-  }
-};
-
-struct ModuleSorter : ConversionPatternBase<mlir::ModuleOp> {
-  using ConversionPatternBase<mlir::ModuleOp>::ConversionPatternBase;
-
-  LogicalResult
-  matchAndRewrite(mlir::ModuleOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.modifyOpInPlace(op,
-                             [&] { mlir::sortTopologically(op.getBody()); });
     return success();
   }
 };
@@ -508,16 +496,6 @@ struct ConvertHWToRTLILPass
     : public circt::impl::ConvertHWToRTLILBase<ConvertHWToRTLILPass> {
   void runOnOperation() override;
 };
-
-struct SortModulePass
-    : public mlir::PassWrapper<SortModulePass,
-                               mlir::OperationPass<mlir::ModuleOp>> {
-  void runOnOperation() override {
-    auto op = getOperation();
-    mlir::sortTopologically(op.getBody());
-  }
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SortModulePass);
-};
 } // namespace
 
 static void populateHWToRTLILConversionPatterns(
@@ -545,17 +523,9 @@ void ConvertHWToRTLILPass::runOnOperation() {
   RewritePatternSet patterns(&getContext());
   rtlil::RTLILTypeConverter converter;
   populateHWToRTLILConversionPatterns(converter, context, patterns);
+  // No topological sort afterwards: an `rtlil.module` body is a graph region,
+  // so a cell may precede the `rtlil.wire` it drives.
   if (failed(mlir::applyPartialConversion(getOperation(), target,
-                                          std::move(patterns)))) {
+                                          std::move(patterns))))
     return signalPassFailure();
-  }
-  RewritePatternSet sortPatterns(&getContext());
-  sortPatterns.add<ModuleSorter>(converter, context, sortPatterns.getContext());
-
-  ConversionTarget sortTarget(getContext());
-  mlir::OpPassManager dynamicPm("builtin.module");
-  dynamicPm.addNestedPass<mlir::ModuleOp>(std::make_unique<SortModulePass>());
-  if (failed(runPipeline(dynamicPm, getOperation()))) {
-    signalPassFailure();
-  }
 }

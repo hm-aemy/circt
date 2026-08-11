@@ -6,6 +6,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/OpAsmInterface.td"
+include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
@@ -141,6 +142,80 @@ def WireOp : RTLILOp<"wire"> {
         return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<mlir::IntegerAttr>(llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth()).getValue());
                           }], "getWidth()">;
   let results = (outs RTLILValue:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// Structure
+//===----------------------------------------------------------------------===//
+
+// Defined after `WireOp` so that `getPortWires()` can name it by value.
+def ModuleOp : RTLILOp<"module", [
+    HasParent<"::mlir::ModuleOp">,
+    Symbol,
+    IsolatedFromAbove,
+    SingleBlock,
+    NoTerminator,
+    NoRegionArguments,
+    RegionKindInterface,
+    OpAsmOpInterface
+  ]> {
+  let summary = "A named RTLIL netlist of wires and cells";
+  let description = [{
+    Models one `RTLIL::Module`. The symbol name is the RTLIL identifier
+    including its sigil, so a module Yosys calls `\demo` is `rtlil.module
+    @"\\demo"` here -- see `rtlil.wire` for why the sigil is part of the name.
+
+    Ports are not listed separately: in RTLIL a port *is* a wire with a non-zero
+    `port_id`, and `RTLIL::Module::fixup_ports()` derives the port list from
+    those flags. Keeping a second list here would be a second source of truth
+    that any Yosys pass could desynchronise.
+
+    The body is a *graph* region. RTLIL is a netlist rather than straight-line
+    code, so a cell may drive a wire declared below it.
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes,
+                       DefaultValuedAttr<StrArrayAttr, "{}">:$avail_parameters);
+  let regions = (region SizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $sym_name (`avail_parameters` $avail_parameters^)?
+    (`attributes` $rtlil_attributes^)? attr-dict-with-keyword $body
+  }];
+
+  // The auto-generated builders leave the region blockless, which every
+  // `getBodyBlock()` would then walk off the end of. Replace them with builders
+  // that create the single block.
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<(ins "::mlir::StringAttr":$symName,
+                   CArg<"::mlir::ArrayAttr", "{}">:$rtlilAttributes,
+                   CArg<"::mlir::ArrayAttr", "{}">:$availParameters)>,
+    OpBuilder<(ins "::llvm::StringRef":$symName), [{
+      build($_builder, $_state, $_builder.getStringAttr(symName));
+    }]>
+  ];
+
+  let extraClassDeclaration = [{
+    /// Implement RegionKindInterface.
+    static ::mlir::RegionKind getRegionKind(unsigned index) {
+      return ::mlir::RegionKind::Graph;
+    }
+
+    /// Implement OpAsmOpInterface: print the body without an `rtlil.` prefix on
+    /// every op.
+    static ::llvm::StringRef getDefaultDialect() { return "rtlil"; }
+
+    ::mlir::Block *getBodyBlock() { return &getBody().front(); }
+
+    // The port wires are reached through the free function
+    // `circt::rtlil::getPortWires(ModuleOp)` rather than a member: TableGen
+    // emits op classes in alphabetical order, so `WireOp` is still incomplete
+    // here and `SmallVector<WireOp>` cannot be named.
+  }];
+
+  let hasVerifier = 1;
 }
 
 def CellOpInterface : OpInterface<"CellOpInterface"> {
@@ -287,7 +362,16 @@ def ALDFFOp : RTLILOp<"aldff", [DeclareOpInterfaceMethods<CellOpInterface>, Fixe
                       }], "getParameters()">;
 }
 
-def InstanceOp : RTLILOp<"instance", [DeclareOpInterfaceMethods<CellOpInterface>]> {
+def InstanceOp : RTLILOp<"instance", [
+    DeclareOpInterfaceMethods<CellOpInterface>,
+    DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "A cell whose type names another module in the design";
+  let description = [{
+    The RTLIL-level equivalent of `rtlil.cell` for the case where the cell type
+    resolves to an `rtlil.module`, so the reference can be a real MLIR symbol
+    and a dangling callee is a verifier error rather than something the exporter
+    discovers.
+  }];
   let arguments = (ins StrAttr:$name,
                        FlatSymbolRefAttr:$type,
                        Variadic<RTLILValue>:$connections,
