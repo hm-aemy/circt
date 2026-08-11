@@ -246,3 +246,36 @@ rtlil.module @"\\top" {
   // expected-error@+1 {{'rtlil.instance' op references unknown module \nope}}
   "rtlil.instance"() <{name="$i", type=@"\\nope", ports = [], parameters = []}> : () -> ()
 }
+
+// -----
+
+rtlil.module @"\\top" {
+  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[8 : i32]>
+  // expected-error@+1 {{'rtlil.slice' op slice of 4 bits at offset 6 runs past the end of a 8-bit value}}
+  %s = "rtlil.slice"(%w) <{offset = 6 : i32}> : (!rtlil<val[8 : i32]>) -> !rtlil<val[4 : i32]>
+}
+
+// -----
+
+rtlil.module @"\\top" {
+  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[8 : i32]>
+  // expected-error@+1 {{'rtlil.concat' op operands total 16 bits but the result is 8}}
+  %y = "rtlil.concat"(%w, %w) : (!rtlil<val[8 : i32]>, !rtlil<val[8 : i32]>) -> !rtlil<val[8 : i32]>
+}
+
+// -----
+
+rtlil.module @"\\top" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1 : i32]>
+  // A parameter name is an RTLIL identifier too, sigil and all.
+  // expected-error@+1 {{parameter name 'WIDTH' is not a valid RTLIL identifier}}
+  "rtlil.cell"(%a) <{name = "$c", type = "$lut", ports = ["\\A"], parameters = [#rtlil.param<"WIDTH" 4 : i32>]}> : (!rtlil<val[1 : i32]>) -> ()
+}
+
+// -----
+
+rtlil.module @"\\top" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1 : i32]>
+  // expected-error@+1 {{parameter '\WIDTH' must be an integer, a bit vector or a string}}
+  "rtlil.cell"(%a) <{name = "$c", type = "$lut", ports = ["\\A"], parameters = [#rtlil.param<"\\WIDTH" unit>]}> : (!rtlil<val[1 : i32]>) -> ()
+}

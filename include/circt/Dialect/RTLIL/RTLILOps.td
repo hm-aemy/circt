@@ -1,7 +1,7 @@
 #ifndef RTLIL_OPS
 #define RTLIL_OPS
 
-include "RTLIL.td"
+include "circt/Dialect/RTLIL/RTLIL.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
@@ -52,18 +52,40 @@ class RTLILType<string name, list<Trait> traits = []>
 
 // Parameters
 
+// One entry of an `RTLIL::Cell`'s parameter dict, or of any RTLIL object's
+// attribute dict -- both map an identifier to an `RTLIL::Const`, so both use
+// this.
+//
+// `$value` is deliberately a bare `Attribute` rather than an `IntegerAttr`: an
+// `RTLIL::Const` is either a string or a bit vector of arbitrary width that may
+// contain `x` and `z`, and Yosys hands back plenty of both ($lut masks, $mem
+// INIT, string parameters). It holds one of:
+//
+//   * `IntegerAttr` -- the convenient case, and what the derived `parameters`
+//     attributes below construct;
+//   * `ConstAttr`   -- an explicit bit vector, for widths over 64 or any value
+//     containing `x`/`z`;
+//   * `StringAttr`  -- a string parameter.
+//
+// `$flags` carries `RTLIL::Const::flags` verbatim so that CONST_FLAG_STRING,
+// _SIGNED and _REAL survive a round trip.
 def ParamAttr : RTLILAttr<"Parameter", "param"> {
   let parameters = (ins
                     "::mlir::StringAttr":$name,
-                    "::mlir::IntegerAttr":$value);
-  let assemblyFormat = "$name $value ";
+                    "::mlir::Attribute":$value,
+                    OptionalParameter<"std::optional<uint16_t>">:$flags);
+  // Explicitly delimited: without the angle brackets the printed form is
+  // `#rtlil.param "\NAME" 4 : i32`, which is ambiguous inside the parameter
+  // array.
+  let assemblyFormat = "`<` $name $value (`flags` $flags^)? `>`";
   let builders = [
     AttrBuilder<(ins "llvm::StringRef":$name, "unsigned":$width,"uint64_t":$val), [{
       auto intattr = mlir::IntegerAttr::get(mlir::IntegerType::get($_ctxt, width), val);
       auto strattr = mlir::StringAttr::get($_ctxt, name);
-      return Base::get($_ctxt, strattr, intattr);
+      return Base::get($_ctxt, strattr, intattr, std::nullopt);
     }]>
   ];
+  let genVerifyDecl = 1;
 }
 
 def ParamArrayAttr
@@ -128,6 +150,45 @@ def ConstOp : MValueExpander, RTLILOp<"const", [AllMatch<["llvm::cast<mlir::Inte
   let results = (outs RTLILValue:$result);
 }
 
+//===----------------------------------------------------------------------===//
+// Signal spec
+//===----------------------------------------------------------------------===//
+//
+// An `RTLIL::SigSpec` is a bit vector assembled from chunks, where each chunk is
+// either a slice of a wire or a run of constant bits. A design that has been
+// through `opt`, `techmap` or `abc` is full of them -- a `$_AND_` cell driving
+// one bit of a wide wire, say -- so the import cannot represent cell ports as
+// whole wires alone.
+//
+// These two ops are that representation. A chunk that happens to cover a whole
+// wire, or a spec of exactly one chunk, stays bare: `rtlil.slice` and
+// `rtlil.concat` appear only where a SigSpec genuinely needs them.
+
+def SliceOp : RTLILOp<"slice", [Pure]> {
+  let summary = "A contiguous run of bits from a value";
+  let description = [{
+    `$offset` counts from bit 0 of `$input`, *not* from the wire's
+    `start_offset` -- that attribute is Verilog declaration cosmetics and is
+    carried on `rtlil.wire` separately. The number of bits taken is the width of
+    the result.
+  }];
+  let arguments = (ins RTLILValue:$input, I32Attr:$offset);
+  let results = (outs RTLILValue:$result);
+  let hasVerifier = 1;
+}
+
+def ConcatOp : RTLILOp<"concat", [Pure]> {
+  let summary = "Several values joined into a wider one";
+  let description = [{
+    Operands are ordered **least significant first**, matching
+    `RTLIL::SigSpec::chunks()` and the bit order of `rtlil.const`. Note this is
+    the opposite of RTLIL's textual `{ msb ... lsb }` syntax.
+  }];
+  let arguments = (ins Variadic<RTLILValue>:$inputs);
+  let results = (outs RTLILValue:$result);
+  let hasVerifier = 1;
+}
+
 // TODO Is I32 correct?
 def WireOp : RTLILOp<"wire"> {
   let arguments = (ins StrAttr:$name
@@ -137,6 +198,10 @@ def WireOp : RTLILOp<"wire"> {
                        ,DefaultValuedAttr<BoolAttr, "false">:$port_input
                        ,DefaultValuedAttr<BoolAttr, "false">:$port_output
                        ,DefaultValuedAttr<BoolAttr, "false">:$upto
+                       // The RTLIL `attributes` dict. `src` is not stored here:
+                       // it becomes the op's Location on import and is derived
+                       // back from it on export, so keeping it would duplicate.
+                       ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
   );
   DerivedAttr width = DerivedAttr<"::mlir::IntegerAttr", [{
         return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<mlir::IntegerAttr>(llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth()).getValue());
@@ -264,6 +329,7 @@ def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
                        ,Variadic<RTLILValue>:$connections
                        ,StrArrayAttr:$ports
                        ,ParamArrayAttr:$parameters
+                       ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
   );
 }
 
@@ -376,7 +442,8 @@ def InstanceOp : RTLILOp<"instance", [
                        FlatSymbolRefAttr:$type,
                        Variadic<RTLILValue>:$connections,
                        StrArrayAttr:$ports,
-                       ParamArrayAttr:$parameters
+                       ParamArrayAttr:$parameters,
+                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
   );
 }
 

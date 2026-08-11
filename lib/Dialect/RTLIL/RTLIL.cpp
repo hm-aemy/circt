@@ -22,6 +22,7 @@
 
 #include "circt/Dialect/RTLIL/RTLIL.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
+#include "circt/Dialect/RTLIL/RTLILTypes.h"
 
 using namespace mlir;
 using namespace circt::rtlil;
@@ -42,6 +43,29 @@ using namespace circt::rtlil;
 #define GET_TYPEDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILOpsTypes.cpp.inc"
 #undef GET_TYPEDEF_CLASSES
+
+LogicalResult
+ParameterAttr::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
+                      StringAttr name, Attribute value,
+                      std::optional<uint16_t> flags) {
+  if (!name || !isValidIdentifier(name.getValue()))
+    return emitError() << "parameter name '" << (name ? name.getValue() : "")
+                       << "' is not a valid RTLIL identifier";
+
+  // An RTLIL::Const is a string or a bit vector. `IntegerAttr` is the
+  // shorthand for a bit vector that fits in 64 bits and is fully defined;
+  // `ConstAttr` (an array of StateEnumAttr) is the general form.
+  if (isa<StringAttr, IntegerAttr>(value))
+    return success();
+  if (auto array = dyn_cast<ArrayAttr>(value)) {
+    if (llvm::all_of(array, llvm::IsaPred<StateEnumAttr>))
+      return success();
+    return emitError() << "parameter '" << name.getValue()
+                       << "' has an array value that is not a bit vector";
+  }
+  return emitError() << "parameter '" << name.getValue()
+                     << "' must be an integer, a bit vector or a string";
+}
 
 void RTLILDialect::initialize() {
   addOperations<

@@ -40,3 +40,27 @@ rtlil.module @"\\top" {
 
   "rtlil.instance"(%1, %6) <{name="$inst", type=@"\\add", ports = ["input", "output"], parameters = []}> : (!rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>) -> ()
 }
+
+// A SigSpec: bits [6:3] of a wire concatenated with two constant bits, the
+// shape a cell port takes after `opt`/`techmap`/`abc`. Operands are ordered
+// least significant first.
+rtlil.module @"\\sigspec" {
+  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[8 : i32]>
+  %c = "rtlil.const"() <{value = [1 : i8, 0 : i8]}> : () -> !rtlil<val[2 : i32]>
+  %s = "rtlil.slice"(%w) <{offset = 3 : i32}> : (!rtlil<val[8 : i32]>) -> !rtlil<val[4 : i32]>
+  %y = "rtlil.concat"(%s, %c) : (!rtlil<val[4 : i32]>, !rtlil<val[2 : i32]>) -> !rtlil<val[6 : i32]>
+}
+
+// Parameters an IntegerAttr cannot carry: a bit vector wider than 64 bits, one
+// containing x/z, and a string.
+rtlil.module @"\\params" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1 : i32]>
+  "rtlil.cell"(%a) <{
+    name = "$c", type = "$lut", ports = ["\\A"],
+    parameters = [
+      #rtlil.param<"\\WIDTH" 4 : i32>,
+      #rtlil.param<"\\UNDEF" [2 : i8, 3 : i8, 0 : i8, 1 : i8]>,
+      #rtlil.param<"\\SRC" "foo.v:3.1-3.9">
+    ]
+  }> : (!rtlil<val[1 : i32]>) -> ()
+}

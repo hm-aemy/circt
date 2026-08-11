@@ -267,24 +267,19 @@ struct ConstantConversion : ConversionPatternBase<hw::ConstantOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto outType = getTypeConverter()->convertType<rtlil::MValueType>(
         op->getResultTypes()[0]);
-    mlir::IntegerAttr value = adaptor.getValueAttr();
-    auto width = value.getType().getIntOrFloatBitWidth();
-    if (width > 64) {
-      return failure();
-    }
-    uint64_t intVal = value.getInt();
+    // Iterate the APInt rather than going through `getInt()`, which asserts
+    // above 64 bits. Constants that wide are ordinary in gate-level designs.
+    const llvm::APInt &intVal = adaptor.getValueAttr().getValue();
+    unsigned width = intVal.getBitWidth();
 
     llvm::SmallVector<Attribute> v;
-
-    for (unsigned int idx = 0; idx < width; idx++) {
-      if (intVal & (1ull << idx)) {
-        v.emplace_back(
-            rtlil::StateEnumAttr::get(getContext(), rtlil::StateEnum::S1));
-      } else {
-        v.emplace_back(
-            rtlil::StateEnumAttr::get(getContext(), rtlil::StateEnum::S0));
-      }
-    }
+    v.reserve(width);
+    // Least significant bit first, the order both `ConstAttr` and
+    // `RTLIL::Const` use.
+    for (unsigned idx = 0; idx < width; idx++)
+      v.emplace_back(rtlil::StateEnumAttr::get(
+          getContext(),
+          intVal[idx] ? rtlil::StateEnum::S1 : rtlil::StateEnum::S0));
 
     rewriter.replaceOpWithNewOp<rtlil::ConstOp>(op, outType,
                                                 rewriter.getArrayAttr(v));
@@ -416,8 +411,8 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
 
     rewriter.create<rtlil::InstanceOp>(
         op->getLoc(), makeGlobal(rewriter, op.getInstanceNameAttr()),
-        makeGlobal(rewriter, op.getModuleName()), resultWires,
-        rewriter.getArrayAttr(ports), rewriter.getArrayAttr({}));
+        mlir::FlatSymbolRefAttr::get(makeGlobal(rewriter, op.getModuleName())),
+        resultWires, rewriter.getArrayAttr(ports), rewriter.getArrayAttr({}));
     resultWires.erase(resultWires.begin(),
                       resultWires.begin() + op.getNumInputPorts());
     rewriter.replaceOp(op, mlir::ValueRange(resultWires));

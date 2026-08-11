@@ -122,6 +122,36 @@ LogicalResult rtlil::ModuleOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// SliceOp / ConcatOp
+//===----------------------------------------------------------------------===//
+
+static unsigned getBitWidth(Value value) {
+  return cast<rtlil::MValueType>(value.getType()).getBitWidth();
+}
+
+LogicalResult rtlil::SliceOp::verify() {
+  unsigned inputWidth = getBitWidth(getInput());
+  unsigned resultWidth = getBitWidth(getResult());
+  // Both are unsigned, so add rather than subtract: `offset + resultWidth`
+  // cannot wrap for any width the type can express.
+  if (uint64_t(getOffset()) + resultWidth > inputWidth)
+    return emitOpError("slice of ")
+           << resultWidth << " bits at offset " << getOffset()
+           << " runs past the end of a " << inputWidth << "-bit value";
+  return success();
+}
+
+LogicalResult rtlil::ConcatOp::verify() {
+  uint64_t total = 0;
+  for (Value input : getInputs())
+    total += getBitWidth(input);
+  if (total != getBitWidth(getResult()))
+    return emitOpError("operands total ")
+           << total << " bits but the result is " << getBitWidth(getResult());
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // InstanceOp
 //===----------------------------------------------------------------------===//
 
