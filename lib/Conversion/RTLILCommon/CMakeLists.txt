@@ -8,6 +8,7 @@ add_circt_conversion_library(CIRCTRTLILCommon
   CIRCTHW
   CIRCTComb
   CIRCTRTLIL
+  CIRCTSeq
   MLIRTransforms
   MLIRPass
   MLIRSupport
