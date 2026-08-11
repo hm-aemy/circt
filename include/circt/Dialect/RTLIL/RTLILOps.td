@@ -99,6 +99,18 @@ def MValueTypeImpl : RTLILType<"MValue"> {
   let typeName = "rtlil.val";
   let assemblyFormat = "`[` $width `]`";
   let mnemonic = "val";
+  let extraClassDeclaration = [{
+    /// The width of this value, in bits.
+    ///
+    /// The width is stored as a `TypedAttr` so that it can print as
+    /// `!rtlil<val[32 : i32]>`, which means every reader would otherwise spell
+    /// `cast<IntegerAttr>(cast<MValueType>(t).getWidth()).getInt()`. The
+    /// import/export converters do this on every wire, chunk and slice.
+    unsigned getBitWidth();
+
+    /// Build an `!rtlil<val[$width : i32]>` from a plain bit width.
+    static MValueType get(::mlir::MLIRContext *context, unsigned width);
+  }];
 }
 
 class MValueExpander  {
