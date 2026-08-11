@@ -52,4 +52,5 @@ endif()
 
 if(CIRCT_YOSYS_LIB_ENABLED)
   add_subdirectory(ExportRTLIL)
+  add_subdirectory(ImportRTLIL)
 endif()
