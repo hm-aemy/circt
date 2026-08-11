@@ -74,7 +74,13 @@ private:
   Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
                       Operation *diagnosticOp);
 
-  /// The dialect attribute for one `RTLIL::Const`.
+  /// The `ConstAttr` bit array for one `RTLIL::Const`, which is what
+  /// `rtlil.const` takes.
+  FailureOr<ArrayAttr> importBits(const Yosys::RTLIL::Const &value,
+                                  Location loc);
+
+  /// The attribute for one `RTLIL::Const` used as a parameter or an attribute
+  /// value, where an `IntegerAttr` or `StringAttr` is preferable when it fits.
   FailureOr<Attribute> importConst(const Yosys::RTLIL::Const &value,
                                    Location loc);
 
@@ -151,18 +157,11 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
   return builder.getFusedLoc(locations);
 }
 
-FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
-                                           Location loc) {
-  // The only sound discriminator is the flag. `Const::is_str()` is private, and
-  // `Const(long long, int)` uses the string backing internally for byte-multiple
-  // widths, so the backing tag says nothing about intent. `decode_string()`
-  // also drops NUL bytes, which makes it lossy on anything that is not really a
-  // string.
-  if (value.flags & Yosys::RTLIL::CONST_FLAG_STRING)
-    return Attribute(builder.getStringAttr(value.decode_string()));
-
+FailureOr<ArrayAttr> Importer::importBits(const Yosys::RTLIL::Const &value,
+                                          Location loc) {
   SmallVector<Attribute> bits;
   bits.reserve(value.size());
+  // `to_bits()` is public and works whichever backing the Const uses.
   for (Yosys::RTLIL::State bit : value.to_bits()) {
     rtlil::StateEnum state;
     switch (bit) {
@@ -191,24 +190,77 @@ FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
     }
     bits.push_back(rtlil::StateEnumAttr::get(context, state));
   }
-  return Attribute(builder.getArrayAttr(bits));
+  return builder.getArrayAttr(bits);
+}
+
+FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
+                                           Location loc) {
+  // The only sound discriminator is the flag. `Const::is_str()` is private, and
+  // `Const(long long, int)` uses the string backing internally for byte-multiple
+  // widths, so the backing tag says nothing about intent. `decode_string()`
+  // also drops NUL bytes, which makes it lossy on anything that is not really a
+  // string.
+  if (value.flags & Yosys::RTLIL::CONST_FLAG_STRING)
+    return Attribute(builder.getStringAttr(value.decode_string()));
+
+  // A fully defined value narrow enough to fit becomes an `IntegerAttr`. That
+  // is what the dialect's own `#rtlil.param` builder produces, and it is what
+  // makes `\A_WIDTH 8` readable instead of a 32-element array of `0 : i8`.
+  // Export expands it back to the same bits, so nothing is lost.
+  //
+  // Only for *parameters and attributes*: `rtlil.const` needs the bit array,
+  // and reaches `importBits` directly.
+  std::vector<Yosys::RTLIL::State> rawBits = value.to_bits();
+  if (!rawBits.empty() && rawBits.size() <= 64 &&
+      llvm::all_of(rawBits, [](Yosys::RTLIL::State bit) {
+        return bit == Yosys::RTLIL::State::S0 || bit == Yosys::RTLIL::State::S1;
+      })) {
+    llvm::APInt intVal(rawBits.size(), 0);
+    for (unsigned i = 0, e = rawBits.size(); i != e; ++i)
+      if (rawBits[i] == Yosys::RTLIL::State::S1)
+        intVal.setBit(i);
+    return Attribute(builder.getIntegerAttr(
+        builder.getIntegerType(rawBits.size()), intVal));
+  }
+
+  auto bits = importBits(value, loc);
+  if (failed(bits))
+    return failure();
+  return Attribute(*bits);
+}
+
+/// `flags` only when it says something: the common case is 0, and printing it
+/// on every parameter buries the ones that matter.
+static std::optional<uint16_t> nonDefaultFlags(const Yosys::RTLIL::Const &v) {
+  if (v.flags == Yosys::RTLIL::CONST_FLAG_NONE)
+    return std::nullopt;
+  return v.flags;
 }
 
 FailureOr<ArrayAttr>
 Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
                            Location loc) {
-  SmallVector<Attribute> entries;
+  // Sorted by name: `attributes` is a hash dict, so its iteration order is an
+  // implementation detail of Yosys and would make FileCheck output unstable
+  // across Yosys versions.
+  SmallVector<std::pair<StringRef, const Yosys::RTLIL::Const *>> sorted;
   for (const auto &[name, value] : object.attributes) {
     // `src` becomes the op's Location. Keeping it here as well would duplicate
     // it on every Path B round trip, since export re-derives it from the loc.
     if (name == Yosys::ID::src)
       continue;
-    auto imported = importConst(value, loc);
+    sorted.emplace_back(toStringRef(name), &value);
+  }
+  llvm::sort(sorted, llvm::less_first());
+
+  SmallVector<Attribute> entries;
+  for (auto [name, value] : sorted) {
+    auto imported = importConst(*value, loc);
     if (failed(imported))
       return failure();
     entries.push_back(rtlil::ParameterAttr::get(
-        context, builder.getStringAttr(toStringRef(name)), *imported,
-        std::optional<uint16_t>(value.flags)));
+        context, builder.getStringAttr(name), *imported,
+        nonDefaultFlags(*value)));
   }
   return builder.getArrayAttr(entries);
 }
@@ -225,11 +277,11 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
   for (const auto &chunk : spec.chunks()) {
     if (!chunk.wire) {
       // A run of constant bits.
-      auto value = importConst(Yosys::RTLIL::Const(chunk.data), loc);
+      auto value = importBits(Yosys::RTLIL::Const(chunk.data), loc);
       if (failed(value))
         return {};
-      pieces.push_back(builder.create<rtlil::ConstOp>(
-          loc, getType(chunk.width), cast<ArrayAttr>(*value)));
+      pieces.push_back(
+          builder.create<rtlil::ConstOp>(loc, getType(chunk.width), *value));
       continue;
     }
 
@@ -266,26 +318,37 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
 //===----------------------------------------------------------------------===//
 
 LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
+  // Both dicts are sorted by name before use: Yosys' `dict` is a hash map whose
+  // iteration order is not part of its contract, and the port-name and operand
+  // arrays here have to be index-parallel *and* stable for FileCheck.
+  SmallVector<std::pair<StringRef, const Yosys::RTLIL::SigSpec *>> sortedPorts;
+  for (const auto &[port, signal] : cell->connections())
+    sortedPorts.emplace_back(toStringRef(port), &signal);
+  llvm::sort(sortedPorts, llvm::less_first());
+
   SmallVector<Attribute> portNames;
   SmallVector<Value> connections;
-  // `connections()` is a sorted dict, so the two arrays stay index-parallel and
-  // the order is stable across runs.
-  for (const auto &[port, signal] : cell->connections()) {
-    Value value = importSigSpec(signal, loc, nullptr);
+  for (auto [port, signal] : sortedPorts) {
+    Value value = importSigSpec(*signal, loc, nullptr);
     if (!value)
       return failure();
-    portNames.push_back(builder.getStringAttr(toStringRef(port)));
+    portNames.push_back(builder.getStringAttr(port));
     connections.push_back(value);
   }
 
+  SmallVector<std::pair<StringRef, const Yosys::RTLIL::Const *>> sortedParams;
+  for (const auto &[name, value] : cell->parameters)
+    sortedParams.emplace_back(toStringRef(name), &value);
+  llvm::sort(sortedParams, llvm::less_first());
+
   SmallVector<Attribute> parameters;
-  for (const auto &[name, value] : cell->parameters) {
-    auto imported = importConst(value, loc);
+  for (auto [name, value] : sortedParams) {
+    auto imported = importConst(*value, loc);
     if (failed(imported))
       return failure();
     parameters.push_back(rtlil::ParameterAttr::get(
-        context, builder.getStringAttr(toStringRef(name)), *imported,
-        std::optional<uint16_t>(value.flags)));
+        context, builder.getStringAttr(name), *imported,
+        nonDefaultFlags(*value)));
   }
 
   auto attributes = importAttributes(*cell, loc);
