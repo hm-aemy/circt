@@ -54,7 +54,7 @@ RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
       return {};
     auto name =
         builder.getStringAttr(llvm::formatv("${0}", ++rtlilContext.nameCtr));
-    return builder.create<rtlil::WireOp>(pos, t, name, 0, 0, 0, isInput, 0, 0);
+    return rtlil::WireOp::create(builder, pos, t, name, 0, 0, 0, isInput, 0, 0);
   });
 }
 
