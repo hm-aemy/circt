@@ -8,13 +8,13 @@ add_circt_dialect_library(CIRCTRTLIL
 
   DEPENDS
   MLIRRTLILOpsIncGen
-  MLIRRTLILAttrDefsIncGen
-  MLIRRTLILEnumDefsIncGen
-  MLIRRTLILInterfaceDefsIncGen
-  MLIRDerivedAttributeOpInterface
+  CIRCTRTLILAttrDefsIncGen
+  CIRCTRTLILEnumsIncGen
+  CIRCTRTLILInterfaceDefsIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRDerivedAttributeOpInterface
 )
 
 if(CIRCT_YOSYS_LIB_ENABLED)
