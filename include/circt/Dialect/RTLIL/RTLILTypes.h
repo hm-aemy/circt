@@ -32,6 +32,6 @@ bool isValidIdentifier(llvm::StringRef name);
 /// classes alphabetically, leaving `WireOp` incomplete inside `ModuleOp`.
 llvm::SmallVector<WireOp> getPortWires(ModuleOp module);
 
-}; // namespace circt::rtlil
+} // namespace circt::rtlil
 
 #endif
