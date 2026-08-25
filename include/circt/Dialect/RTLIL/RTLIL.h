@@ -29,7 +29,7 @@
 #define GET_TYPEDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILTypes.h.inc"
 #define GET_ATTRDEF_CLASSES
-#include "circt/Dialect/RTLIL/RTLILAttrDefs.h.inc"
+#include "circt/Dialect/RTLIL/RTLILAttributes.h.inc"
 #include "circt/Dialect/RTLIL/RTLILEnums.h.inc"
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.h.inc"

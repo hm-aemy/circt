@@ -37,7 +37,7 @@ using namespace circt::rtlil;
 #include "circt/Dialect/RTLIL/RTLILOpInterfaces.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "circt/Dialect/RTLIL/RTLILAttrDefs.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLILAttributes.cpp.inc"
 #undef GET_ATTRDEF_CLASSES
 
 #define GET_TYPEDEF_CLASSES
@@ -74,7 +74,7 @@ void RTLILDialect::initialize() {
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "circt/Dialect/RTLIL/RTLILAttrDefs.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLILAttributes.cpp.inc"
       >();
   addTypes<
 #define GET_TYPEDEF_LIST

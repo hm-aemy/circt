@@ -8,7 +8,7 @@ add_circt_dialect_library(CIRCTRTLIL
 
   DEPENDS
   MLIRRTLILIncGen
-  CIRCTRTLILAttrDefsIncGen
+  CIRCTRTLILAttributesIncGen
   CIRCTRTLILEnumsIncGen
   MLIRRTLILOpInterfacesIncGen
 
