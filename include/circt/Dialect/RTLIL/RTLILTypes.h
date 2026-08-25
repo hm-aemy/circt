@@ -1,7 +1,7 @@
 #ifndef CIRCT_DIALECT_RTLIL_RTLILTYPES_H
 #define CIRCT_DIALECT_RTLIL_RTLILTYPES_H
 
-#include "RTLIL.h"
+#include "circt/Dialect/RTLIL/RTLIL.h"
 
 namespace circt::rtlil {
 

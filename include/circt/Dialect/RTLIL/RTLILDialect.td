@@ -19,7 +19,7 @@ def RTLILDialect : Dialect {
     let name = "rtlil";
     let summary = "Types and operations for RTLIL dialect";
     let description = [{
-        This dialect deifnes the `rtlil` dialect, which is used to translate
+        This dialect defines the `rtlil` dialect, which is used to translate
         between CIRCT and Yosys. For more information, see the [RTLIL
         description](https://yosyshq.readthedocs.io/projects/yosys/en/latest/yosys_internals/formats/rtlil_rep.html).
     }];

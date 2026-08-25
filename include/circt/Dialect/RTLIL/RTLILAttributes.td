@@ -19,7 +19,6 @@ include "mlir/IR/AttrTypeBase.td"
 
 include "circt/Dialect/RTLIL/RTLILDialect.td"
 include "circt/Dialect/RTLIL/RTLILEnums.td"
-include "circt/Dialect/RTLIL/RTLILTypes.td"
 
 //===----------------------------------------------------------------------===//
 // Base Attribute
