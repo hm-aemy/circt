@@ -26,7 +26,7 @@
 using namespace mlir;
 
 #define GET_OP_CLASSES
-#include "circt/Dialect/RTLIL/RTLILOps.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLIL.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // ModuleOp

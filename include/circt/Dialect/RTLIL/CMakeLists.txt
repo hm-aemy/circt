@@ -1,17 +1,14 @@
-add_circt_dialect(RTLILOps rtlil)
-add_circt_doc(RTLILOps Dialects/RTLILOps -gen-op-doc -dialect rtlil)
+add_circt_dialect(RTLIL rtlil)
+add_circt_dialect_doc(RTLIL rtlil)
+set(LLVM_TARGET_DEFINITIONS RTLIL.td)
 
-set(LLVM_TARGET_DEFINITIONS RTLILEnums.td)
 mlir_tablegen(RTLILEnums.h.inc -gen-enum-decls)
 mlir_tablegen(RTLILEnums.cpp.inc -gen-enum-defs)
 add_public_tablegen_target(CIRCTRTLILEnumsIncGen)
 add_dependencies(circt-headers CIRCTRTLILEnumsIncGen)
 
-set(LLVM_TARGET_DEFINITIONS RTLILOps.td)
-mlir_tablegen(RTLILAttrDefs.h.inc -gen-attrdef-decls
--attrdefs-dialect=rtlil)
-mlir_tablegen(RTLILAttrDefs.cpp.inc -gen-attrdef-defs
--attrdefs-dialect=rtlil)
+mlir_tablegen(RTLILAttrDefs.h.inc -gen-attrdef-decls -attrdefs-dialect=rtlil)
+mlir_tablegen(RTLILAttrDefs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=rtlil)
 add_public_tablegen_target(CIRCTRTLILAttrDefsIncGen)
 add_dependencies(circt-headers CIRCTRTLILAttrDefsIncGen)
 

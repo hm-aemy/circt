@@ -17,7 +17,6 @@ include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/IR/AttrTypeBase.td"
 
-include "RTLIL.td"
 include "circt/Dialect/RTLIL/RTLILDialect.td"
 include "circt/Dialect/RTLIL/RTLILEnums.td"
 include "circt/Dialect/RTLIL/RTLILTypes.td"

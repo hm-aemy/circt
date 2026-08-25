@@ -7,12 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 
-#ifndef RTLIL_DIALECT
-#define RTLIL_DIALECT
+#ifndef CIRCT_DIALECT_RTLIL_RTLIL_TD
+#define CIRCT_DIALECT_RTLIL_RTLIL_TD
 
 include "mlir/IR/OpBase.td"
 include "circt/Dialect/RTLIL/RTLILDialect.td"
+include "circt/Dialect/RTLIL/RTLILEnums.td"
+include "circt/Dialect/RTLIL/RTLILTypes.td"
+include "circt/Dialect/RTLIL/RTLILAttributes.td"
+include "circt/Dialect/RTLIL/RTLILOpInterfaces.td"
 include "circt/Dialect/RTLIL/RTLILOps.td"
 
-
-#endif // RTLIL_DIALECT
+#endif // CIRCT_DIALECT_RTLIL_RTLIL_TD

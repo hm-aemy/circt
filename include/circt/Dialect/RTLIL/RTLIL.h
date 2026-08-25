@@ -27,12 +27,11 @@
 
 #include "circt/Dialect/RTLIL/RTLILInterfaces.h.inc"
 #define GET_TYPEDEF_CLASSES
-#include "circt/Dialect/RTLIL/RTLILOpsTypes.h.inc"
+#include "circt/Dialect/RTLIL/RTLILTypes.h.inc"
 #define GET_ATTRDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILAttrDefs.h.inc"
 #include "circt/Dialect/RTLIL/RTLILEnums.h.inc"
 #define GET_OP_CLASSES
-#include "circt/Dialect/RTLIL/RTLILOps.h.inc"
-#include "circt/Dialect/RTLIL/RTLILOpsDialect.h.inc"
+#include "circt/Dialect/RTLIL/RTLIL.h.inc"
 
 #endif // CIRCT_DIALECT_RTLIL_RTLIL_H

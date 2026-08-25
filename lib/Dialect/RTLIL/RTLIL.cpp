@@ -32,7 +32,7 @@ using namespace circt::rtlil;
 //===----------------------------------------------------------------------===//
 
 #include "circt/Dialect/RTLIL/RTLILEnums.cpp.inc"
-#include "circt/Dialect/RTLIL/RTLILOpsDialect.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLILDialect.cpp.inc"
 
 #include "circt/Dialect/RTLIL/RTLILInterfaces.cpp.inc"
 
@@ -41,7 +41,7 @@ using namespace circt::rtlil;
 #undef GET_ATTRDEF_CLASSES
 
 #define GET_TYPEDEF_CLASSES
-#include "circt/Dialect/RTLIL/RTLILOpsTypes.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
 #undef GET_TYPEDEF_CLASSES
 
 LogicalResult
@@ -70,7 +70,7 @@ ParameterAttr::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
 void RTLILDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "circt/Dialect/RTLIL/RTLILOps.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLIL.cpp.inc"
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
@@ -78,6 +78,6 @@ void RTLILDialect::initialize() {
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "circt/Dialect/RTLIL/RTLILOpsTypes.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
       >();
 }
