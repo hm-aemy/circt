@@ -203,8 +203,8 @@ struct BinOpConversion<BinOp, ResultOp,
     auto resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
     std::vector<Value> connections(
         {adaptor.getInputs()[0], adaptor.getInputs()[1], resultWire});
-    r.create<ResultOp>(
-        op->getLoc(), Super::genUniqueLocalName(r), std::move(connections),
+    ResultOp::create(
+        r, op->getLoc(), Super::genUniqueLocalName(r), std::move(connections),
         op.getInputs()[0].getType().getIntOrFloatBitWidth(), false);
     r.replaceOp(op, resultWire);
     return success();
@@ -228,9 +228,9 @@ struct BinOpConversion<BinOp, ResultOp,
     auto resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
     std::vector<Value> connections(
         {adaptor.getLhs(), adaptor.getRhs(), resultWire});
-    r.create<ResultOp>(op->getLoc(), Super::genUniqueLocalName(r),
-                       std::move(connections),
-                       op.getLhs().getType().getIntOrFloatBitWidth(), false);
+    ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r),
+                     std::move(connections),
+                     op.getLhs().getType().getIntOrFloatBitWidth(), false);
     r.replaceOp(op, resultWire);
     return success();
   }
