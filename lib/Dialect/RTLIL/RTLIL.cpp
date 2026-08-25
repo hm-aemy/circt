@@ -34,7 +34,7 @@ using namespace circt::rtlil;
 #include "circt/Dialect/RTLIL/RTLILEnums.cpp.inc"
 #include "circt/Dialect/RTLIL/RTLILDialect.cpp.inc"
 
-#include "circt/Dialect/RTLIL/RTLILInterfaces.cpp.inc"
+#include "circt/Dialect/RTLIL/RTLILOpInterfaces.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILAttrDefs.cpp.inc"

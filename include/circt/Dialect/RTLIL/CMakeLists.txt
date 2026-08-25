@@ -1,5 +1,7 @@
 add_circt_dialect(RTLIL rtlil)
 add_circt_dialect_doc(RTLIL rtlil)
+add_circt_interface(RTLILOpInterfaces)
+
 set(LLVM_TARGET_DEFINITIONS RTLIL.td)
 
 mlir_tablegen(RTLILEnums.h.inc -gen-enum-decls)
@@ -11,11 +13,6 @@ mlir_tablegen(RTLILAttrDefs.h.inc -gen-attrdef-decls -attrdefs-dialect=rtlil)
 mlir_tablegen(RTLILAttrDefs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=rtlil)
 add_public_tablegen_target(CIRCTRTLILAttrDefsIncGen)
 add_dependencies(circt-headers CIRCTRTLILAttrDefsIncGen)
-
-mlir_tablegen(RTLILInterfaces.h.inc -gen-op-interface-decls)
-mlir_tablegen(RTLILInterfaces.cpp.inc -gen-op-interface-defs)
-add_public_tablegen_target(CIRCTRTLILInterfaceDefsIncGen)
-add_dependencies(circt-headers CIRCTRTLILInterfaceDefsIncGen)
 
 # The RTLIL passes need libyosys, so they are declared here rather than in
 # `circt/Conversion/Passes.td` -- see RTLILPasses.td for why. The tablegen
