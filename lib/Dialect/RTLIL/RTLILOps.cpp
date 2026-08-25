@@ -16,7 +16,6 @@
 // under the License.
 
 #include "circt/Dialect/RTLIL/RTLILOps.h"
-#include "circt/Dialect/RTLIL/RTLIL.h"
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"

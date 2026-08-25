@@ -20,7 +20,7 @@
 
 #include <memory>
 
-#include "circt/Dialect/RTLIL/RTLIL.h"
+#include "circt/Dialect/RTLIL/RTLILDialect.h"
 #include "mlir/Pass/Pass.h"
 
 namespace circt {

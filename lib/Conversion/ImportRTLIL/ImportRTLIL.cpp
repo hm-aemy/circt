@@ -19,7 +19,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "circt/Conversion/ImportRTLIL.h"
-#include "circt/Dialect/RTLIL/RTLIL.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
 #include "circt/Yosys/Yosys.h"

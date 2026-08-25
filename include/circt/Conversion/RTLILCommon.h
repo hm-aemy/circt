@@ -2,8 +2,7 @@
 #define CIRCT_CONVERSION_RTLILCOMMON_H
 
 #include "circt/Dialect/HW/HWTypes.h"
-#include "circt/Dialect/RTLIL/RTLIL.h"
-#include "circt/Dialect/RTLIL/RTLILTypes.h"
+#include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/Seq/SeqTypes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"

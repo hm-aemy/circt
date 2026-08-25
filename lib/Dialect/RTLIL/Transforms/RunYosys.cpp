@@ -28,7 +28,6 @@
 
 #include "circt/Conversion/ExportRTLIL.h"
 #include "circt/Conversion/ImportRTLIL.h"
-#include "circt/Dialect/RTLIL/RTLIL.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/RTLIL/RTLILPasses.h"
 #include "circt/Yosys/Yosys.h"

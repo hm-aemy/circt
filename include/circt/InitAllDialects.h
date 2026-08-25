@@ -49,7 +49,7 @@
 #include "circt/Dialect/Synth/SynthDialect.h"
 #include "circt/Dialect/SystemC/SystemCDialect.h"
 #include "circt/Dialect/Verif/VerifDialect.h"
-#include "circt/Dialect/RTLIL/RTLIL.h"
+#include "circt/Dialect/RTLIL/RTLILDialect.h"
 #include "mlir/Dialect/SMT/IR/SMTDialect.h"
 #include "mlir/IR/Dialect.h"
 

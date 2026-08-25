@@ -1,5 +1,5 @@
 #include "circt/Conversion/RTLILCommon.h"
-#include "circt/Dialect/RTLIL/RTLIL.h"
+#include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Support/LLVM.h"
 #include "llvm/Support/FormatVariadic.h"
 

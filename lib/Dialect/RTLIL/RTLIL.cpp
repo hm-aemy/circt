@@ -18,9 +18,12 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-#include "circt/Dialect/RTLIL/RTLIL.h"
+#include <tuple>
+
 #include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
 
@@ -43,6 +46,16 @@ using namespace circt::rtlil;
 #define GET_TYPEDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
 #undef GET_TYPEDEF_CLASSES
+
+ArrayAttr circt::rtlil::createParamArrayAttr(
+    mlir::MLIRContext *context,
+    llvm::ArrayRef<std::tuple<llvm::StringRef, unsigned, uint64_t>> &&r) {
+  llvm::SmallVector<Attribute, 5> v;
+  for (auto &&[name, width, val] : r) {
+    v.emplace_back(ParameterAttr::get(context, name, width, val));
+  }
+  return ArrayAttr::get(context, v);
+}
 
 LogicalResult
 ParameterAttr::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
