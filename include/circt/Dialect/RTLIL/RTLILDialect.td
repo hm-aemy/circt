@@ -13,7 +13,7 @@
 #ifndef CIRCT_DIALECT_RTLIL_RTLILDIALECT_TD
 #define CIRCT_DIALECT_RTLIL_RTLILDIALECT_TD
 
-include "mlir/IR/OpBase.td"
+include "mlir/IR/DialectBase.td"
 
 def RTLILDialect : Dialect {
     let name = "rtlil";

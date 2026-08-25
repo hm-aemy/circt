@@ -10,7 +10,6 @@
 #ifndef CIRCT_DIALECT_RTLIL_RTLIL_TD
 #define CIRCT_DIALECT_RTLIL_RTLIL_TD
 
-include "mlir/IR/OpBase.td"
 include "circt/Dialect/RTLIL/RTLILDialect.td"
 include "circt/Dialect/RTLIL/RTLILEnums.td"
 include "circt/Dialect/RTLIL/RTLILTypes.td"
