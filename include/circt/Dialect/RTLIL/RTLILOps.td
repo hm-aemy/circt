@@ -1,5 +1,17 @@
-#ifndef RTLIL_OPS
-#define RTLIL_OPS
+//===- RTLILOps.td - RTLIL dialect operations --------------*- tablegen -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the operations of the RTLIL dialect.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef CIRCT_DIALECT_RTLIL_RTLILOPS_TD
+#define CIRCT_DIALECT_RTLIL_RTLILOPS_TD
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
@@ -303,4 +315,4 @@ def WConnectionOp : RTLILOp<"wconnection"> {
                       //  , // TODO back to FlatSymbolRefAttr?
   // let results = (outs Variadic<AnyType>:$results);
 
-#endif // RTLIL_OPS
+#endif // CIRCT_DIALECT_RTLIL_RTLILOPS_TD
