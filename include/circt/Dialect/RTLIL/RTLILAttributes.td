@@ -17,21 +17,11 @@ include "circt/Dialect/RTLIL/RTLILDialect.td"
 include "circt/Dialect/RTLIL/RTLILEnums.td"
 
 //===----------------------------------------------------------------------===//
-// Base Attribute
-//===----------------------------------------------------------------------===//
-
-class RTLILAttr<string attrName, string attrMnemonic, list<Trait> traits = []>
-    : AttrDef<RTLILDialect, attrName, traits> {
-  let mnemonic = attrMnemonic;
-}
-
-//===----------------------------------------------------------------------===//
 // Parameter Attributes
 //===----------------------------------------------------------------------===//
 
-// One entry of an `RTLIL::Cell`'s parameter dict, or of any RTLIL object's
-// attribute dict -- both map an identifier to an `RTLIL::Const`, so both use
-// this.
+// Mirror `dict<RTLIL::IdString, RTLIL::Const>` used in `RTLIL::AttrObject` for
+// attributes and in `RTLIL::Cell` for parameters.
 //
 // `$value` is deliberately a bare `Attribute` rather than an `IntegerAttr`: an
 // `RTLIL::Const` is either a string or a bit vector of arbitrary width that may
@@ -46,7 +36,9 @@ class RTLILAttr<string attrName, string attrMnemonic, list<Trait> traits = []>
 //
 // `$flags` carries `RTLIL::Const::flags` verbatim so that CONST_FLAG_STRING,
 // _SIGNED and _REAL survive a round trip.
-def ParamAttr : RTLILAttr<"Parameter", "param"> {
+def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
+  let mnemonic = "param";
+  let summary = "Connect `RTLIL::Const` to `RTLIL::IdString`";
   let parameters = (ins
                     "::mlir::StringAttr":$name,
                     "::mlir::Attribute":$value,
@@ -56,11 +48,13 @@ def ParamAttr : RTLILAttr<"Parameter", "param"> {
   // array.
   let assemblyFormat = "`<` $name $value (`flags` $flags^)? `>`";
   let builders = [
-    AttrBuilder<(ins "llvm::StringRef":$name, "unsigned":$width,"uint64_t":$val), [{
-      auto intattr = mlir::IntegerAttr::get(mlir::IntegerType::get($_ctxt, width), val);
-      auto strattr = mlir::StringAttr::get($_ctxt, name);
-      return Base::get($_ctxt, strattr, intattr, std::nullopt);
-    }]>
+    AttrBuilder<(ins
+      "llvm::StringRef":$name, "unsigned":$width,"uint64_t":$val), [{
+        auto intattr = mlir::IntegerAttr::get(mlir::IntegerType::get($_ctxt, width), val);
+        auto strattr = mlir::StringAttr::get($_ctxt, name);
+        return Base::get($_ctxt, strattr, intattr, std::nullopt);
+      }]
+    >
   ];
   let genVerifyDecl = 1;
 }
@@ -68,6 +62,7 @@ def ParamAttr : RTLILAttr<"Parameter", "param"> {
 def ParamArrayAttr
   : TypedArrayAttrBase<ParamAttr, "cell parameters"> {
   let constBuilderCall = "::circt::rtlil::createParamArrayAttr($_builder.getContext(), $0)";
+  let summary = "Dict of `RTLIL::Const` and `RTLIL::IdString`";
 }
 
 //===----------------------------------------------------------------------===//

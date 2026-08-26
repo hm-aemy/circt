@@ -12,10 +12,6 @@
 include "mlir/IR/AttrTypeBase.td"
 include "circt/Dialect/RTLIL/RTLILDialect.td"
 
-/// Base type for all RTLIL objects
-class RTLILType<string name, list<Trait> traits = []>
-  : TypeDef<RTLILDialect, name, traits> { }
-
 /// All Values in RTLIL must pass of MValueType check
 def RTLILValue : DialectType<
   RTLILDialect,
@@ -24,12 +20,12 @@ def RTLILValue : DialectType<
 >;
 
 // A parameterized integer type. Declares the hw::IntType in C++.
-def MValueTypeImpl : RTLILType<"MValue"> {
+def MValueTypeImpl : TypeDef<RTLILDialect, "MValue"> {
+  let mnemonic = "val";
   let summary = "parameterized-width RTLIL::State sequence";
   let parameters = (ins "::mlir::TypedAttr":$width);
   let typeName = "rtlil.val";
   let assemblyFormat = "`[` $width `]`";
-  let mnemonic = "val";
   let extraClassDeclaration = [{
     /// The width of this value, in bits.
     ///
