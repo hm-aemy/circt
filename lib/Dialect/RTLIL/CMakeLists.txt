@@ -1,5 +1,7 @@
 add_circt_dialect_library(CIRCTRTLIL
-  RTLIL.cpp
+  RTLILAttributes.cpp
+  RTLILDialect.cpp
+  RTLILOpInterfaces.cpp
   RTLILOps.cpp
   RTLILTypes.cpp
 

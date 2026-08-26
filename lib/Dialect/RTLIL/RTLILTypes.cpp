@@ -1,10 +1,31 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/MLIRContext.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
+
+#define GET_TYPEDEF_CLASSES
+#include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
+
+void circt::rtlil::RTLILDialect::registerTypes() {
+  addTypes<
+#define GET_TYPEDEF_LIST
+#include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
+      >();
+}
 
 namespace circt::rtlil {
 bool isMValueType(mlir::Type type) { return isa<MValueType>(type); }

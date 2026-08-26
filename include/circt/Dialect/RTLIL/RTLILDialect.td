@@ -23,6 +23,15 @@ def RTLILDialect : Dialect {
     // let hasConstantMaterializer = 1;
     let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 1;
+
+    let extraClassDeclaration = [{
+      /// Register all RTLIL types. Defined in `RTLILTypes.cpp`, next to the
+      /// generated storage classes registration needs.
+      void registerTypes();
+      /// Register all RTLIL attributes. Defined in `RTLILAttributes.cpp`, for
+      /// the same reason.
+      void registerAttributes();
+    }];
 }
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILDIALECT_TD
