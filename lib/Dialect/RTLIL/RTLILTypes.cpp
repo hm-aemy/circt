@@ -28,8 +28,6 @@ void circt::rtlil::RTLILDialect::registerTypes() {
 }
 
 namespace circt::rtlil {
-bool isMValueType(mlir::Type type) { return isa<MValueType>(type); }
-
 bool isValidIdentifier(llvm::StringRef name) {
   if (name.empty() || (name.front() != '\\' && name.front() != '$'))
     return false;

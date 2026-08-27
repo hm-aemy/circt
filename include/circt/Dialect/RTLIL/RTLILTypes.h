@@ -21,8 +21,6 @@
 
 namespace circt::rtlil {
 
-bool isMValueType(mlir::Type type);
-
 /// Whether `name` is a legal RTLIL identifier: non-empty, starting with `\`
 /// (public) or `$` (auto-generated), and containing no control character or
 /// space.

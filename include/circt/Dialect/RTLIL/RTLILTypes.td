@@ -12,15 +12,8 @@
 include "mlir/IR/AttrTypeBase.td"
 include "circt/Dialect/RTLIL/RTLILDialect.td"
 
-/// All Values in RTLIL must pass of MValueType check
-def RTLILValue : DialectType<
-  RTLILDialect,
-  CPred<"::circt::rtlil::isMValueType($_self)">,
-  "value"
->;
-
 // A fixed-width sequence of `RTLIL::State`. Declares `rtlil::MValueType` in C++.
-def MValueTypeImpl : TypeDef<RTLILDialect, "MValue"> {
+def MValueType : TypeDef<RTLILDialect, "MValue"> {
   let mnemonic = "val";
   let summary = "fixed-width RTLIL::State sequence";
   let description = [{
@@ -39,7 +32,7 @@ def MValueTypeImpl : TypeDef<RTLILDialect, "MValue"> {
 }
 
 class MValueExpander {
-  string typeName = MValueTypeImpl.cppType;
+  string typeName = MValueType.cppType;
 }
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILTYPES_TD

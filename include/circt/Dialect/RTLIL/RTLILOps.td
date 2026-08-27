@@ -40,7 +40,7 @@ class RTLILOp<string mnemonic, list<Trait> traits = []> :
 
 def ConstOp : MValueExpander, RTLILOp<"const", [AllMatch<["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"], "bitwidth matches">]> {
   let arguments = (ins ConstAttr:$value);
-  let results = (outs RTLILValue:$result);
+  let results = (outs MValueType:$result);
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,8 +65,8 @@ def SliceOp : RTLILOp<"slice", [Pure]> {
     carried on `rtlil.wire` separately. The number of bits taken is the width of
     the result.
   }];
-  let arguments = (ins RTLILValue:$input, I32Attr:$offset);
-  let results = (outs RTLILValue:$result);
+  let arguments = (ins MValueType:$input, I32Attr:$offset);
+  let results = (outs MValueType:$result);
   let hasVerifier = 1;
 }
 
@@ -77,8 +77,8 @@ def ConcatOp : RTLILOp<"concat", [Pure]> {
     `RTLIL::SigSpec::chunks()` and the bit order of `rtlil.const`. Note this is
     the opposite of RTLIL's textual `{ msb ... lsb }` syntax.
   }];
-  let arguments = (ins Variadic<RTLILValue>:$inputs);
-  let results = (outs RTLILValue:$result);
+  let arguments = (ins Variadic<MValueType>:$inputs);
+  let results = (outs MValueType:$result);
   let hasVerifier = 1;
 }
 
@@ -99,7 +99,7 @@ def WireOp : RTLILOp<"wire"> {
   DerivedAttr width = DerivedAttr<"::mlir::IntegerAttr", [{
         return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth());
                           }], "getWidth()">;
-  let results = (outs RTLILValue:$result);
+  let results = (outs MValueType:$result);
 }
 
 //===----------------------------------------------------------------------===//
@@ -184,7 +184,7 @@ def ModuleOp : RTLILOp<"module", [
 def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
   let arguments = (ins StrAttr:$name
                        ,StrAttr:$type
-                       ,Variadic<RTLILValue>:$connections
+                       ,Variadic<MValueType>:$connections
                        ,StrArrayAttr:$ports
                        ,ParamArrayAttr:$parameters
                        ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
@@ -198,7 +198,7 @@ class FixedWidths<list<string> widths> : MValueExpander, TraitList<!foreach(idx,
 
 class BinOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "$width"]>]> {
   let arguments = (ins StrAttr:$name,
-                      Variadic<RTLILValue>:$connections,
+                      Variadic<MValueType>:$connections,
                       I32Attr:$width,
                       I32Attr:$opsSigned,
                       DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
@@ -221,7 +221,7 @@ def SubOp : BinOp<"sub">;
 
 def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<4>, FixedWidths<["$width", "$width", "1", "$width"]>]> {
   let arguments = (ins StrAttr:$name,
-                      Variadic<RTLILValue>:$connections,
+                      Variadic<MValueType>:$connections,
                       I32Attr:$width,
                       DefaultValuedAttr<StrAttr, [{"$$mux"}]>:$type,
                       DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\S", "\\Y"} }]>:$ports);
@@ -234,7 +234,7 @@ def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
 
 class CmpOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "1"]>]> {
   let arguments = (ins StrAttr:$name,
-                      Variadic<RTLILValue>:$connections,
+                      Variadic<MValueType>:$connections,
                       I32Attr:$width,
                       I32Attr:$opsSigned,
                       DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
@@ -259,7 +259,7 @@ def LTOp : CmpOp<"lt">;
 
 def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["1", "$width", "$width"]>]> {
   let arguments = (ins StrAttr:$name,
-                      Variadic<RTLILValue>:$connections,
+                      Variadic<MValueType>:$connections,
                       I32Attr:$width,
                       DefaultValuedAttr<StrAttr, [{"$$dff"}]>:$type,
                       DefaultValuedAttr<StrArrayAttr, [{ {"\\CLK", "\\D", "\\Q"} }]>:$ports);
@@ -273,7 +273,7 @@ def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
 
 def ALDFFOp : RTLILOp<"aldff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<5>, FixedWidths<["1", "$width", "1", "$width", "$width"]>]> {
   let arguments = (ins StrAttr:$name,
-                      Variadic<RTLILValue>:$connections,
+                      Variadic<MValueType>:$connections,
                       I32Attr:$width,
                       DefaultValuedAttr<StrAttr, [{"$$aldff"}]>:$type,
                       DefaultValuedAttr<StrArrayAttr, [{ {"\\CLK", "\\D", "\\ALOAD", "\\AD", "\\Q"} }]>:$ports);
@@ -298,7 +298,7 @@ def InstanceOp : RTLILOp<"instance", [
   }];
   let arguments = (ins StrAttr:$name,
                        FlatSymbolRefAttr:$type,
-                       Variadic<RTLILValue>:$connections,
+                       Variadic<MValueType>:$connections,
                        StrArrayAttr:$ports,
                        ParamArrayAttr:$parameters,
                        DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
@@ -306,7 +306,7 @@ def InstanceOp : RTLILOp<"instance", [
 }
 
 def WConnectionOp : RTLILOp<"wconnection"> {
-  let arguments = (ins RTLILValue:$lhs, RTLILValue:$rhs);
+  let arguments = (ins MValueType:$lhs, MValueType:$rhs);
 }
                       //  , // TODO back to FlatSymbolRefAttr?
   // let results = (outs Variadic<AnyType>:$results);
