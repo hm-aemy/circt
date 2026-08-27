@@ -109,7 +109,7 @@ LogicalResult rtlil::ModuleOp::verify() {
 //===----------------------------------------------------------------------===//
 
 static unsigned getBitWidth(Value value) {
-  return cast<MValueType>(value.getType()).getBitWidth();
+  return cast<MValueType>(value.getType()).getWidth();
 }
 
 LogicalResult SliceOp::verify() {

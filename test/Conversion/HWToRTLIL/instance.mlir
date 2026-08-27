@@ -22,6 +22,6 @@ hw.module @test(in %x : i32, in %y : i32) {
   // and cells share one namespace, and a duplicate makes Yosys abort.
   // CHECK-DAG: %[[R1:.+]] = "rtlil.wire"() <{{.*}}name = "$[[N1:[0-9]+]]"{{.*}}
   // CHECK-DAG: %[[R2:.+]] = "rtlil.wire"() <{{.*}}name = "$[[N2:[0-9]+]]"{{.*}}
-  // CHECK-DAG: "rtlil.instance"(%[[X:.+]], %[[Y:.+]], %[[R1]], %[[R2]]) <{{{.*}}name = "\\instance1"{{.*}}ports = ["\\x", "\\y", "\\res1", "\\res2"]{{.*}}type = [[ORMOD]]}> : (!rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>, !rtlil<val[32 : i32]>) -> ()
+  // CHECK-DAG: "rtlil.instance"(%[[X:.+]], %[[Y:.+]], %[[R1]], %[[R2]]) <{{{.*}}name = "\\instance1"{{.*}}ports = ["\\x", "\\y", "\\res1", "\\res2"]{{.*}}type = [[ORMOD]]}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
   %1, %2 = hw.instance "instance1" @ormod(x: %x : i32, y: %y : i32) -> (res1: i32, res2: i32)
 }

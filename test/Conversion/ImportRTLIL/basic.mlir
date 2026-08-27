@@ -9,10 +9,10 @@
 // CHECK-SAME:    attributes [#rtlil.param<"\\top" 1 : i32>]
 
 // Ports keep their `port_id`, which is what carries the port ordering.
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\a"{{.*}}port_id = 1 {{.*}}port_input = true{{.*}}> : () -> !rtlil<val[8 : i32]>
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\b"{{.*}}port_id = 2 {{.*}}port_input = true{{.*}}> : () -> !rtlil<val[8 : i32]>
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\y"{{.*}}port_id = 3 {{.*}}port_output = true{{.*}}> : () -> !rtlil<val[8 : i32]>
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "$tmp"{{.*}}port_id = 0 {{.*}}> : () -> !rtlil<val[8 : i32]>
+// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\a"{{.*}}port_id = 1 {{.*}}port_input = true{{.*}}> : () -> !rtlil<val[8]>
+// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\b"{{.*}}port_id = 2 {{.*}}port_input = true{{.*}}> : () -> !rtlil<val[8]>
+// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\y"{{.*}}port_id = 3 {{.*}}port_output = true{{.*}}> : () -> !rtlil<val[8]>
+// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "$tmp"{{.*}}port_id = 0 {{.*}}> : () -> !rtlil<val[8]>
 
 // Every cell imports as a generic `rtlil.cell`: after techmap or abc most cell
 // types have no dialect op, and the typed ops carry *derived* parameters that

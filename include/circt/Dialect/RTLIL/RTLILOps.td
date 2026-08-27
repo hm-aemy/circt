@@ -38,7 +38,7 @@ class RTLILOp<string mnemonic, list<Trait> traits = []> :
 // Wire related operations and primitives
 //===----------------------------------------------------------------------===//
 
-def ConstOp : MValueExpander, RTLILOp<"const", [AllMatch<["llvm::cast<mlir::IntegerAttr>(llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()).getValue()", "$value.size()"], "bitwidth matches">]> {
+def ConstOp : MValueExpander, RTLILOp<"const", [AllMatch<["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"], "bitwidth matches">]> {
   let arguments = (ins ConstAttr:$value);
   let results = (outs RTLILValue:$result);
 }
@@ -97,7 +97,7 @@ def WireOp : RTLILOp<"wire"> {
                        ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
   );
   DerivedAttr width = DerivedAttr<"::mlir::IntegerAttr", [{
-        return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<mlir::IntegerAttr>(llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth()).getValue());
+        return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth());
                           }], "getWidth()">;
   let results = (outs RTLILValue:$result);
 }
@@ -194,7 +194,7 @@ def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
 class FixedOperands<int n> : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;
 
 
-class FixedWidths<list<string> widths> : MValueExpander, TraitList<!foreach(idx, !range(widths), AllMatch<["::llvm::cast<::mlir::IntegerAttr>(::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()).getInt()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
+class FixedWidths<list<string> widths> : MValueExpander, TraitList<!foreach(idx, !range(widths), AllMatch<["::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
 
 class BinOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "$width"]>]> {
   let arguments = (ins StrAttr:$name,

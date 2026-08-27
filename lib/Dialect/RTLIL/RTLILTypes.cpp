@@ -30,14 +30,6 @@ void circt::rtlil::RTLILDialect::registerTypes() {
 namespace circt::rtlil {
 bool isMValueType(mlir::Type type) { return isa<MValueType>(type); }
 
-unsigned MValueType::getBitWidth() {
-  return cast<IntegerAttr>(getWidth()).getValue().getZExtValue();
-}
-
-MValueType MValueType::get(mlir::MLIRContext *context, unsigned width) {
-  return get(context, IntegerAttr::get(IntegerType::get(context, 32), width));
-}
-
 bool isValidIdentifier(llvm::StringRef name) {
   if (name.empty() || (name.front() != '\\' && name.front() != '$'))
     return false;

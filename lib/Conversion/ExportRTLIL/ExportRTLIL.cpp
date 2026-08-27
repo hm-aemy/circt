@@ -289,7 +289,7 @@ LogicalResult ModuleEmitter::emit(rtlil::ModuleOp op) {
 LogicalResult ModuleEmitter::emitWire(rtlil::WireOp op) {
   auto *wire = module->addWire(
       id(op.getName()),
-      cast<rtlil::MValueType>(op.getResult().getType()).getBitWidth());
+      cast<rtlil::MValueType>(op.getResult().getType()).getWidth());
   wire->port_id = op.getPortId();
   wire->port_input = op.getPortInput();
   wire->port_output = op.getPortOutput();
@@ -321,7 +321,7 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
       return std::nullopt;
     spec = input->extract(
         slice.getOffset(),
-        cast<rtlil::MValueType>(slice.getResult().getType()).getBitWidth());
+        cast<rtlil::MValueType>(slice.getResult().getType()).getWidth());
   } else if (auto concat = dyn_cast<rtlil::ConcatOp>(definingOp)) {
     // `SigSpec::append` adds at the most significant end, and the operands are
     // already ordered least significant first.

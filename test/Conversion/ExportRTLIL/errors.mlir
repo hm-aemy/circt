@@ -12,9 +12,9 @@
 
 rtlil.module @"\\top" {
   // expected-note@+1 {{previously declared here}}
-  %1 = "rtlil.wire"() <{name="$dup", is_signed = false}> : () -> !rtlil<val[1 : i32]>
+  %1 = "rtlil.wire"() <{name="$dup", is_signed = false}> : () -> !rtlil<val[1]>
   // expected-error@+1 {{redeclares the RTLIL name $dup}}
-  %2 = "rtlil.wire"() <{name="$dup", is_signed = false}> : () -> !rtlil<val[1 : i32]>
+  %2 = "rtlil.wire"() <{name="$dup", is_signed = false}> : () -> !rtlil<val[1]>
 }
 
 // -----
@@ -29,7 +29,7 @@ rtlil.module @nosigil {
 // A space in an identifier: Yosys rejects any byte at or below a space.
 rtlil.module @"\\top" {
   // expected-error@+1 {{'rtlil.wire' op name \a b is not a valid RTLIL identifier}}
-  %1 = "rtlil.wire"() <{name="\\a b", is_signed = false}> : () -> !rtlil<val[1 : i32]>
+  %1 = "rtlil.wire"() <{name="\\a b", is_signed = false}> : () -> !rtlil<val[1]>
 }
 
 // -----

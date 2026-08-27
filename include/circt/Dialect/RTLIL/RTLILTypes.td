@@ -19,25 +19,23 @@ def RTLILValue : DialectType<
   "value"
 >;
 
-// A parameterized integer type. Declares the hw::IntType in C++.
+// A fixed-width sequence of `RTLIL::State`. Declares `rtlil::MValueType` in C++.
 def MValueTypeImpl : TypeDef<RTLILDialect, "MValue"> {
   let mnemonic = "val";
-  let summary = "parameterized-width RTLIL::State sequence";
-  let parameters = (ins "::mlir::TypedAttr":$width);
+  let summary = "fixed-width RTLIL::State sequence";
+  let description = [{
+    The value carried by every RTLIL wire and cell port: `$width` bits, each of
+    which is one of the five `RTLIL::State` cases rather than a plain 0/1.
+
+    The width is a plain `unsigned`, mirroring `RTLIL::Wire::width` and
+    `RTLIL::SigChunk::width`, which are both `int`. Unlike `hw::IntType` there
+    is no parameterized case to represent: Yosys keeps parameters in the
+    module's `avail_parameters` and the cell's parameter dict, and `derive()`
+    has substituted them by the time any wire exists.
+  }];
+  let parameters = (ins "unsigned":$width);
   let typeName = "rtlil.val";
   let assemblyFormat = "`[` $width `]`";
-  let extraClassDeclaration = [{
-    /// The width of this value, in bits.
-    ///
-    /// The width is stored as a `TypedAttr` so that it can print as
-    /// `!rtlil<val[32 : i32]>`, which means every reader would otherwise spell
-    /// `cast<IntegerAttr>(cast<MValueType>(t).getWidth()).getInt()`. The
-    /// import/export converters do this on every wire, chunk and slice.
-    unsigned getBitWidth();
-
-    /// Build an `!rtlil<val[$width : i32]>` from a plain bit width.
-    static MValueType get(::mlir::MLIRContext *context, unsigned width);
-  }];
 }
 
 class MValueExpander {

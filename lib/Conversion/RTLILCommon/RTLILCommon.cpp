@@ -11,9 +11,7 @@ RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
   if (val >= INT32_MAX) {
     return std::nullopt;
   }
-  return rtlil::MValueType::get(
-      t.getContext(),
-      mlir::IntegerAttr::get(mlir::IntegerType::get(t.getContext(), 32), val));
+  return rtlil::MValueType::get(t.getContext(), val);
 }
 std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
   auto width = cast<mlir::IntegerAttr>(t.getWidth());
@@ -21,16 +19,12 @@ std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
   if (val >= INT32_MAX) {
     return std::nullopt;
   }
-  return rtlil::MValueType::get(
-      t.getContext(),
-      mlir::IntegerAttr::get(mlir::IntegerType::get(t.getContext(), 32), val));
+  return rtlil::MValueType::get(t.getContext(), val);
 }
 
 std::optional<mlir::Type>
 RTLILTypeConverter::convertClock(circt::seq::ClockType t) {
-  return rtlil::MValueType::get(
-      t.getContext(),
-      mlir::IntegerAttr::get(mlir::IntegerType::get(t.getContext(), 32), 1));
+  return rtlil::MValueType::get(t.getContext(), 1);
 }
 
 RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
