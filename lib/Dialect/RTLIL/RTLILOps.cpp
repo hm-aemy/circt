@@ -13,7 +13,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 
-using namespace mlir;
+using namespace circt;
+using namespace rtlil;
 
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.cpp.inc"
@@ -21,14 +22,6 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 // ModuleOp
 //===----------------------------------------------------------------------===//
-//
-// Note the deliberate absence of `using namespace circt::rtlil` in this file:
-// with `using namespace mlir` also in scope, an unqualified `ModuleOp` would
-// silently bind to `mlir::ModuleOp`. Everything below is qualified.
-//
-//===----------------------------------------------------------------------===//
-
-namespace rtlil = circt::rtlil;
 
 void rtlil::ModuleOp::build(OpBuilder &builder, OperationState &result,
                             StringAttr symName, ArrayAttr rtlilAttributes,
@@ -47,15 +40,15 @@ void rtlil::ModuleOp::build(OpBuilder &builder, OperationState &result,
 /// claim none. Wires and cells share one namespace in `RTLIL::Module`, so they
 /// are collected together.
 static std::optional<StringRef> getDeclaredName(Operation *op) {
-  if (auto wire = dyn_cast<rtlil::WireOp>(op))
+  if (auto wire = dyn_cast<WireOp>(op))
     return wire.getName();
-  if (auto cell = dyn_cast<rtlil::CellOpInterface>(op))
+  if (auto cell = dyn_cast<CellOpInterface>(op))
     return cell.getCellName();
   return std::nullopt;
 }
 
 LogicalResult rtlil::ModuleOp::verify() {
-  if (!rtlil::isValidIdentifier(getSymName()))
+  if (!isValidIdentifier(getSymName()))
     return emitOpError("name ")
            << getSymName()
            << " is not a valid RTLIL identifier; it must start with '\\' or "
@@ -75,7 +68,7 @@ LogicalResult rtlil::ModuleOp::verify() {
                             "an rtlil.module body");
 
     if (auto name = getDeclaredName(&op)) {
-      if (!rtlil::isValidIdentifier(*name))
+      if (!isValidIdentifier(*name))
         return op.emitOpError("name ")
                << *name
                << " is not a valid RTLIL identifier; it must start with '\\' "
@@ -89,7 +82,7 @@ LogicalResult rtlil::ModuleOp::verify() {
                   "namespace";
     }
 
-    auto wire = dyn_cast<rtlil::WireOp>(op);
+    auto wire = dyn_cast<WireOp>(op);
     if (!wire)
       continue;
     uint32_t portId = wire.getPortId();
@@ -116,10 +109,10 @@ LogicalResult rtlil::ModuleOp::verify() {
 //===----------------------------------------------------------------------===//
 
 static unsigned getBitWidth(Value value) {
-  return cast<rtlil::MValueType>(value.getType()).getBitWidth();
+  return cast<MValueType>(value.getType()).getBitWidth();
 }
 
-LogicalResult rtlil::SliceOp::verify() {
+LogicalResult SliceOp::verify() {
   unsigned inputWidth = getBitWidth(getInput());
   unsigned resultWidth = getBitWidth(getResult());
   // Both are unsigned, so add rather than subtract: `offset + resultWidth`
@@ -131,7 +124,7 @@ LogicalResult rtlil::SliceOp::verify() {
   return success();
 }
 
-LogicalResult rtlil::ConcatOp::verify() {
+LogicalResult ConcatOp::verify() {
   uint64_t total = 0;
   for (Value input : getInputs())
     total += getBitWidth(input);
@@ -145,8 +138,7 @@ LogicalResult rtlil::ConcatOp::verify() {
 // InstanceOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult
-rtlil::InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // `rtlil.module` is deliberately not a SymbolTable, so the nearest one is the
   // enclosing `builtin.module` -- the op that stands in for the RTLIL design,
   // and the scope in which module names are unique.
@@ -157,12 +149,12 @@ rtlil::InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return success();
 }
 
-SmallVector<rtlil::WireOp> rtlil::getPortWires(rtlil::ModuleOp module) {
-  SmallVector<rtlil::WireOp> ports;
-  for (auto wire : module.getBodyBlock()->getOps<rtlil::WireOp>())
+SmallVector<WireOp> rtlil::getPortWires(rtlil::ModuleOp module) {
+  SmallVector<WireOp> ports;
+  for (auto wire : module.getBodyBlock()->getOps<WireOp>())
     if (wire.getPortId() != 0)
       ports.push_back(wire);
-  llvm::sort(ports, [](rtlil::WireOp lhs, rtlil::WireOp rhs) {
+  llvm::sort(ports, [](WireOp lhs, WireOp rhs) {
     return lhs.getPortId() < rhs.getPortId();
   });
   return ports;
