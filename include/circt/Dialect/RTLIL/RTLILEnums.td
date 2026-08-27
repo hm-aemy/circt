@@ -29,10 +29,10 @@ class I8EnumAttr<string name, string summary, list<I8EnumAttrCase> cases> :
 // Signedness of an rtlil wire
 //----------------------------------------------------------------------------//
 
-/// Signed means that the contens of the wire must be interpreted
+/// Signed means that the contents of the wire are a two's complement value.
 def Signed : I8EnumAttrCase<"Signed", 1, "signed">;
-/// Unsigned means that the contents are just raw bits
-def Unsigned : I8EnumAttrCase<"AtNegEdge", 0, "negedge">;
+/// Unsigned means that the contents are just raw bits.
+def Unsigned : I8EnumAttrCase<"Unsigned", 0, "unsigned">;
 
 def Signedness : I8EnumAttr<"Signedness", "signedness of an rtlil wire",
                                    [Signed, Unsigned]>;
@@ -68,6 +68,6 @@ def StateEnumAttr: I8EnumAttr<"StateEnum", "RTLIL::State model",
   let cppNamespace = "::circt::rtlil";
 }
 
-} // namspace circt::rtlil
+} // let cppNamespace
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILENUMS_TD
