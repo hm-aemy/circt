@@ -54,8 +54,7 @@ LogicalResult rtlil::ModuleOp::verify() {
            << " is not a valid RTLIL identifier; it must start with '\\' or "
               "'$' and contain no spaces or control characters";
 
-  // Wires and cells share a single namespace inside an `RTLIL::Module`, which
-  // asserts on a duplicate rather than reporting one. Catch it here instead.
+  // Wires and cells share one Yosys namespace; a duplicate corrupts the design.
   DenseMap<StringRef, Operation *> declared;
   // `port_id` is 1-based and must be dense: `fixup_ports()` silently renumbers
   // otherwise, and export/import stop round-tripping.
@@ -86,8 +85,13 @@ LogicalResult rtlil::ModuleOp::verify() {
     if (!wire)
       continue;
     uint32_t portId = wire.getPortId();
+    // Ignore non assigned ports, will be set in `fixup_ports()`.
     if (portId == 0)
       continue;
+    // Yosys expects a direction
+    if (!wire.getPortInput() && !wire.getPortOutput())
+      return op.emitOpError("port_id ")
+             << portId << " without input or output designation.";
     auto [it, inserted] = portIds.try_emplace(portId, &op);
     if (!inserted)
       return op.emitOpError("reuses port_id ")
@@ -115,8 +119,7 @@ static unsigned getBitWidth(Value value) {
 LogicalResult SliceOp::verify() {
   unsigned inputWidth = getBitWidth(getInput());
   unsigned resultWidth = getBitWidth(getResult());
-  // Both are unsigned, so add rather than subtract: `offset + resultWidth`
-  // cannot wrap for any width the type can express.
+  // Add rather than subtract: both are unsigned, and the sum cannot wrap.
   if (uint64_t(getOffset()) + resultWidth > inputWidth)
     return emitOpError("slice of ")
            << resultWidth << " bits at offset " << getOffset()
@@ -135,6 +138,19 @@ LogicalResult ConcatOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// WConnectionOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult WConnectionOp::verify() {
+  unsigned lhsWidth = getBitWidth(getLhs());
+  unsigned rhsWidth = getBitWidth(getRhs());
+  if (lhsWidth != rhsWidth)
+    return emitOpError("Width mismatch left-hand side ")
+           << lhsWidth << "-bit to right-hand side " << rhsWidth << "-bit";
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // InstanceOp
 //===----------------------------------------------------------------------===//
 
@@ -146,6 +162,39 @@ LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
       *this, getTypeAttr());
   if (!callee)
     return emitOpError("references unknown module ") << getType();
+
+  // Only the ports this instance names: a port left out is undriven, which
+  // RTLIL allows. `CellOpInterface` has checked that `$ports` and
+  // `$connections` line up, so the zip is safe.
+  llvm::SmallDenseMap<StringRef, WireOp> calleePorts;
+  for (WireOp port : getPortWires(callee))
+    calleePorts.try_emplace(port.getName(), port);
+
+  for (auto [port, connection] : llvm::zip(getPorts(), getConnections())) {
+    StringRef name = cast<StringAttr>(port).getValue();
+    auto it = calleePorts.find(name);
+    if (it == calleePorts.end())
+      return emitOpError("connects port ")
+                 .append(name)
+                 .append(", which module ")
+                 .append(getType())
+                 .append(" does not declare")
+                 .attachNote(callee.getLoc())
+             << "module declared here";
+
+    unsigned portWidth = getBitWidth(it->second.getResult());
+    unsigned connectionWidth = getBitWidth(connection);
+    if (portWidth != connectionWidth)
+      return emitOpError("connects ")
+                 .append(connectionWidth)
+                 .append(" bits to port ")
+                 .append(name)
+                 .append(", which is ")
+                 .append(portWidth)
+                 .append(" bits wide")
+                 .attachNote(it->second.getLoc())
+             << "port declared here";
+  }
   return success();
 }
 

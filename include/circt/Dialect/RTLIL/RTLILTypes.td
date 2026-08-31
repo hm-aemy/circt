@@ -12,7 +12,6 @@
 include "mlir/IR/AttrTypeBase.td"
 include "circt/Dialect/RTLIL/RTLILDialect.td"
 
-// A fixed-width sequence of `RTLIL::State`. Declares `rtlil::MValueType` in C++.
 def MValueType : TypeDef<RTLILDialect, "MValue"> {
   let mnemonic = "val";
   let summary = "fixed-width RTLIL::State sequence";
@@ -31,6 +30,8 @@ def MValueType : TypeDef<RTLILDialect, "MValue"> {
   let assemblyFormat = "`[` $width `]`";
 }
 
+// Gives an op the C++ name of `MValueType`, for use inside trait predicates:
+// those are plain strings and cannot reach the type through the accessors.
 class MValueExpander {
   string typeName = MValueType.cppType;
 }

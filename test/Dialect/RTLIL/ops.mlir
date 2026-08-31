@@ -1,7 +1,10 @@
 // RUN: circt-opt %s --verify-diagnostics
 
+// A callee for the `rtlil.instance` below. `rtlil.instance` checks its
+// connections against this module's port wires, so the ports have to be real.
 rtlil.module @"\\add" {
-
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false, port_id = 1 : i32, port_input = true}> : () -> !rtlil<val[32]>
+  %y = "rtlil.wire"() <{name="\\y", is_signed = false, port_id = 2 : i32, port_output = true}> : () -> !rtlil<val[32]>
 }
 
 // Wires and cells share a single per-module namespace in RTLIL
@@ -38,7 +41,9 @@ rtlil.module @"\\top" {
 
   "rtlil.aldff"(%clk, %6, %clk, %6, %1) <{name="$aldff",width= 32 : i32}> : (!rtlil<val[1]>, !rtlil<val[32]>,!rtlil<val[1]>,!rtlil<val[32]>, !rtlil<val[32]>) -> ()
 
-  "rtlil.instance"(%1, %6) <{name="$inst", type=@"\\add", ports = ["input", "output"], parameters = []}> : (!rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  // Port names are the callee's wire names, sigil included -- not bare
+  // identifiers: `RTLIL::Cell::setPort` interns them as `IdString`s.
+  "rtlil.instance"(%1, %6) <{name="$inst", type=@"\\add", ports = ["\\a", "\\y"], parameters = []}> : (!rtlil<val[32]>, !rtlil<val[32]>) -> ()
 }
 
 // A SigSpec: bits [6:3] of a wire concatenated with two constant bits, the

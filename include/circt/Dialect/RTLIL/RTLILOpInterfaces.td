@@ -13,9 +13,15 @@ include "mlir/IR/OpBase.td"
 
 def CellOpInterface : OpInterface<"CellOpInterface"> {
   let description = [{
-    All cell types implement this interface.
+    Common view of `RTLIL::Cell` which provides a way to walk any RTLIL cell op.
+    Implemented by `rtlil.cell`, the typed cell ops and `rtlil.instance`.
+
+    Cell ports and connection share the same index, verifier enforces this.
   }];
   let cppNamespace = "::circt::rtlil";
+  let verify = [{
+    return ::circt::rtlil::verifyCellOpInterface($_op);
+  }];
   let methods = [
     InterfaceMethod<[{
       Gets the name of the cell op.
@@ -25,7 +31,8 @@ def CellOpInterface : OpInterface<"CellOpInterface"> {
       return $_op.getName();
     }]>,
     InterfaceMethod<[{
-      Gets the type of the cell op.
+      Gets the type of the cell op. For `rtlil.instance` this is the name of
+      the module it refers to.
     }], "::llvm::StringRef", "getCellType", (ins),
     "", [{
       return $_op.getType();

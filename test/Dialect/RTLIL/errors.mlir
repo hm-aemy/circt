@@ -279,3 +279,76 @@ rtlil.module @"\\top" {
   // expected-error@+1 {{parameter '\WIDTH' must be an integer, a bit vector or a string}}
   "rtlil.cell"(%a) <{name = "$c", type = "$lut", ports = ["\\A"], parameters = [#rtlil.param<"\\WIDTH" unit>]}> : (!rtlil<val[1]>) -> ()
 }
+
+// -----
+
+// `RTLIL::Module::connect` asserts `GetSize(lhs) == GetSize(rhs)`, and the
+// constant-folding branch above that assert indexes the RHS over the LHS'
+// length, so a short RHS reads out of bounds first.
+rtlil.module @"\\top" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[32]>
+  %b = "rtlil.wire"() <{name="\\b", is_signed = false}> : () -> !rtlil<val[8]>
+  // expected-error@+1 {{'rtlil.wconnection' op connects a 32-bit left-hand side to a 8-bit right-hand side}}
+  "rtlil.wconnection"(%a, %b) : (!rtlil<val[32]>, !rtlil<val[8]>) -> ()
+}
+
+// -----
+
+// `fixup_ports()` zeroes the port_id of any wire with no direction flag, so
+// this port would silently vanish from `module->ports`.
+rtlil.module @"\\top" {
+  // expected-error@+1 {{'rtlil.wire' op has port_id 1 but is neither port_input nor port_output}}
+  %p = "rtlil.wire"() <{name="\\p", is_signed = false, port_id = 1 : i32}> : () -> !rtlil<val[1]>
+}
+
+// -----
+
+// `$ports` and `$connections` are index-parallel.
+rtlil.module @"\\top" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1]>
+  // expected-error@+1 {{'rtlil.cell' op has 2 port names but 1 connections; the two are index-parallel}}
+  "rtlil.cell"(%a) <{name = "$c", type = "$lut", ports = ["\\A", "\\Y"], parameters = []}> : (!rtlil<val[1]>) -> ()
+}
+
+// -----
+
+// A port name is an RTLIL identifier: `setPort` interns it as an `IdString`.
+rtlil.module @"\\top" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1]>
+  // expected-error@+1 {{'rtlil.cell' op port name A is not a valid RTLIL identifier}}
+  "rtlil.cell"(%a) <{name = "$c", type = "$lut", ports = ["A"], parameters = []}> : (!rtlil<val[1]>) -> ()
+}
+
+// -----
+
+// `connections_` is a dict, so the second `setPort` would drop the first.
+rtlil.module @"\\top" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1]>
+  // expected-error@+1 {{'rtlil.cell' op connects port \A twice, at operands 0 and 1}}
+  "rtlil.cell"(%a, %a) <{name = "$c", type = "$lut", ports = ["\\A", "\\A"], parameters = []}> : (!rtlil<val[1]>, !rtlil<val[1]>) -> ()
+}
+
+// -----
+
+// An instance may leave a port unconnected, but it may not invent one.
+// expected-note@+1 {{module declared here}}
+rtlil.module @"\\callee" {
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false, port_id = 1 : i32, port_input = true}> : () -> !rtlil<val[8]>
+}
+rtlil.module @"\\top" {
+  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[8]>
+  // expected-error@+1 {{'rtlil.instance' op connects port \nope, which module \callee does not declare}}
+  "rtlil.instance"(%w) <{name="$i", type=@"\\callee", ports = ["\\nope"], parameters = []}> : (!rtlil<val[8]>) -> ()
+}
+
+// -----
+
+rtlil.module @"\\callee" {
+  // expected-note@+1 {{port declared here}}
+  %a = "rtlil.wire"() <{name="\\a", is_signed = false, port_id = 1 : i32, port_input = true}> : () -> !rtlil<val[8]>
+}
+rtlil.module @"\\top" {
+  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[32]>
+  // expected-error@+1 {{'rtlil.instance' op connects 32 bits to port \a, which is 8 bits wide}}
+  "rtlil.instance"(%w) <{name="$i", type=@"\\callee", ports = ["\\a"], parameters = []}> : (!rtlil<val[32]>) -> ()
+}

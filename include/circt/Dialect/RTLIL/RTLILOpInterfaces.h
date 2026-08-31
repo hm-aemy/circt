@@ -15,6 +15,14 @@
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/StringRef.h"
 
+namespace circt::rtlil {
+
+/// Declared before the generated header below, whose `CellOpInterface` trait
+/// calls it.
+mlir::LogicalResult verifyCellOpInterface(mlir::Operation *op);
+
+} // namespace circt::rtlil
+
 #include "circt/Dialect/RTLIL/RTLILOpInterfaces.h.inc"
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILOPINTERFACES_H

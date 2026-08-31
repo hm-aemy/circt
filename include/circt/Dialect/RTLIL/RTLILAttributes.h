@@ -25,6 +25,9 @@
 
 namespace circt::rtlil {
 
+/// Builds a `#rtlil.param` array from `(name, width, value)` triples.
+/// `ParamArrayAttr`'s `constBuilderCall` expands to this, so it must be visible
+/// wherever TableGen expands a default-valued parameter array.
 mlir::ArrayAttr createParamArrayAttr(
     mlir::MLIRContext *context,
     llvm::ArrayRef<std::tuple<llvm::StringRef, unsigned, uint64_t>> &&r);

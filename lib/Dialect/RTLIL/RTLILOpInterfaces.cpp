@@ -7,5 +7,39 @@
 //===----------------------------------------------------------------------===//
 
 #include "circt/Dialect/RTLIL/RTLILOpInterfaces.h"
+#include "circt/Dialect/RTLIL/RTLILTypes.h"
+#include "llvm/ADT/DenseMap.h"
 
 #include "circt/Dialect/RTLIL/RTLILOpInterfaces.cpp.inc"
+
+using namespace circt;
+using namespace mlir;
+
+LogicalResult rtlil::verifyCellOpInterface(Operation *op) {
+  auto cell = cast<CellOpInterface>(op);
+  ArrayAttr ports = cell.getCellPorts();
+  OperandRange connections = cell.getCellConnections();
+
+  if (ports.size() != connections.size())
+    return op->emitOpError("has ")
+           << ports.size() << " port names but " << connections.size()
+           << " connections; the two are index-parallel";
+
+  // A cell may leave a port unconnected, but it may not name one twice:
+  // `RTLIL::Cell::connections_` is a dict, so the second `setPort` silently
+  // replaces the first and a connection disappears.
+  DenseMap<StringRef, unsigned> seen;
+  for (auto [index, port] : llvm::enumerate(ports)) {
+    StringRef name = cast<StringAttr>(port).getValue();
+    if (!isValidIdentifier(name))
+      return op->emitOpError("port name ")
+             << name
+             << " is not a valid RTLIL identifier; it must start with '\\' or "
+                "'$' and contain no spaces or control characters";
+    auto [it, inserted] = seen.try_emplace(name, index);
+    if (!inserted)
+      return op->emitOpError("connects port ")
+             << name << " twice, at operands " << it->second << " and " << index;
+  }
+  return success();
+}

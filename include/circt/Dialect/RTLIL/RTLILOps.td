@@ -306,9 +306,13 @@ def InstanceOp : RTLILOp<"instance", [
 }
 
 def WConnectionOp : RTLILOp<"wconnection"> {
+  let summary = "One entry of a module's connection list";
+  let description = [{
+    Represents one `RTLIL::SigSig` in `RTLIL::Module::connections()`.
+    `$lhs` is driven by `$rhs` and they must have the same width.
+  }];
   let arguments = (ins MValueType:$lhs, MValueType:$rhs);
+  let hasVerifier = 1;
 }
-                      //  , // TODO back to FlatSymbolRefAttr?
-  // let results = (outs Variadic<AnyType>:$results);
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILOPS_TD

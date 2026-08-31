@@ -28,6 +28,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "llvm/ADT/SmallVector.h"
 
+// Operation definitions generated from `RTLIL.td`.
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.h.inc"
 
@@ -35,12 +36,7 @@ namespace circt::rtlil {
 
 /// The wires of `module` flagged as ports, ordered by `port_id`.
 ///
-/// RTLIL keeps no separate port list on a module -- a port is a wire with a
-/// non-zero `port_id`, and `RTLIL::Module::fixup_ports()` derives the list from
-/// those flags -- so neither does `rtlil.module`. The module verifier
-/// guarantees the non-zero ids are exactly `1..N`, so the result is dense.
-///
-/// A free function rather than a method on `ModuleOp` because TableGen emits op
+/// A free function rather than a `ModuleOp` method because TableGen emits op
 /// classes alphabetically, leaving `WireOp` incomplete inside `ModuleOp`.
 llvm::SmallVector<WireOp> getPortWires(ModuleOp module);
 
