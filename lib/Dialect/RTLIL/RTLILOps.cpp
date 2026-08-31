@@ -109,13 +109,13 @@ LogicalResult rtlil::ModuleOp::verify() {
     if (!wire)
       continue;
     uint32_t portId = wire.getPortId();
-    // Ignore non assigned ports, will be set in `fixup_ports()`.
+    // An unassigned `port_id` is not a port yet: `fixup_ports()` numbers it.
     if (portId == 0)
       continue;
-    // Yosys expects a direction
+    // A port with neither flag is one `fixup_ports()` cannot classify.
     if (!wire.getPortInput() && !wire.getPortOutput())
       return op.emitOpError("port_id ")
-             << portId << " without input or output designation.";
+             << portId << " has neither an input nor an output designation";
     auto [it, inserted] = portIds.try_emplace(portId, &op);
     if (!inserted)
       return op.emitOpError("reuses port_id ")
@@ -169,8 +169,8 @@ LogicalResult WConnectionOp::verify() {
   unsigned lhsWidth = getBitWidth(getLhs());
   unsigned rhsWidth = getBitWidth(getRhs());
   if (lhsWidth != rhsWidth)
-    return emitOpError("Width mismatch left-hand side ")
-           << lhsWidth << "-bit to right-hand side " << rhsWidth << "-bit";
+    return emitOpError("left-hand side is ")
+           << lhsWidth << " bits but the right-hand side is " << rhsWidth;
   return success();
 }
 
@@ -180,8 +180,8 @@ LogicalResult WConnectionOp::verify() {
 
 LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // `rtlil.module` is deliberately not a SymbolTable, so the nearest one is the
-  // enclosing `builtin.module` -- the op that stands in for the RTLIL design,
-  // and the scope in which module names are unique.
+  // enclosing `builtin.module`: the op that stands in for the RTLIL design, and
+  // the scope in which module names are unique.
   auto callee = symbolTable.lookupNearestSymbolFrom<rtlil::ModuleOp>(
       *this, getTypeAttr());
   if (!callee)

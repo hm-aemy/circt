@@ -59,6 +59,7 @@ static char toChar(StateEnum state) {
   llvm_unreachable("unhandled RTLIL state");
 }
 
+/// The state such a character stands for, or nullopt if it is not one of them.
 static std::optional<StateEnum> fromChar(char c) {
   switch (c) {
   case '0':

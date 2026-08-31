@@ -15,9 +15,9 @@
 //
 //   1. `exportRTLIL` validates the IR before creating any Yosys object, so the
 //      common failures are ordinary MLIR diagnostics.
-//   2. `log_cmd_error` -- unknown command, bad argument -- can be caught, but
-//      only if `log_cmd_error_throw` is set first. That is what the try/catch
-//      below is for, and why this file needs exceptions enabled.
+//   2. `log_cmd_error`, from an unknown command or a bad argument, can be
+//      caught, but only if `log_cmd_error_throw` is set first. That is what
+//      `YosysScript.cpp` does, and why it is compiled with exceptions.
 //   3. Everything else goes through `log_error`, which ends in `_Exit(1)`.
 //      `circt::yosys::initialize()` installs a `log_error_atexit` hook so that
 //      at least a message gets out.
@@ -97,7 +97,7 @@ void RunYosysPass::runOnOperation() {
   static std::mutex yosysMutex;
   std::lock_guard<std::mutex> guard(yosysMutex);
 
-  // Idempotent, but not itself thread safe -- hence inside the lock.
+  // Idempotent, but not itself thread safe, hence inside the lock.
   if (auto error = circt::yosys::initialize()) {
     module.emitError("failed to initialize Yosys: ")
         << llvm::toString(std::move(error));
@@ -117,7 +117,7 @@ void RunYosysPass::runOnOperation() {
     commands.push_back(command);
 
   // The catch lives in `YosysScript.cpp`, which is the only file here compiled
-  // with exceptions -- see `YosysScript.h`.
+  // with exceptions; see `YosysScript.h`.
   std::string failedCommand, error, log;
   if (!circt::rtlil::detail::runYosysScript(commands, &design, quiet,
                                             failedCommand, error, log)) {
@@ -130,8 +130,8 @@ void RunYosysPass::runOnOperation() {
 
   // Replace rather than merge: after a script there is no correspondence left
   // between the modules that went in and the ones that came out. Only the
-  // `rtlil.module`s are erased, so anything else in the top-level module -- an
-  // unconverted `hw.module`, say -- survives.
+  // `rtlil.module`s are erased, so anything else in the top-level module
+  // survives, an unconverted `hw.module` for example.
   for (auto stale :
        llvm::make_early_inc_range(module.getOps<circt::rtlil::ModuleOp>()))
     stale.erase();

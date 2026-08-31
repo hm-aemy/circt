@@ -25,4 +25,4 @@ namespace rtlil {
 } // namespace rtlil
 } // namespace circt
 
-#endif
+#endif // CIRCT_DIALECT_RTLIL_RTLILPASSES_H

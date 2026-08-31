@@ -8,12 +8,12 @@
 //
 // The one part of the run-yosys pass that needs exceptions.
 //
-// Yosys reports a recoverable command error -- unknown command, bad argument --
-// by throwing `log_cmd_error_exception`, and catching it is the only way to
-// turn a bad script into a diagnostic rather than a process exit. But enabling
-// exceptions on a translation unit also enables RTTI (`AddLLVM.cmake` couples
-// them), and a TU with RTTI that derives from the non-RTTI `mlir::Pass` does
-// not link.
+// Yosys reports a recoverable command error, an unknown command or a bad
+// argument, by throwing `log_cmd_error_exception`, and catching it is the only
+// way to turn a bad script into a diagnostic rather than a process exit. But
+// enabling exceptions on a translation unit also enables RTTI (`AddLLVM.cmake`
+// couples them), and a TU with RTTI that derives from the non-RTTI
+// `mlir::Pass` does not link.
 //
 // So the `catch` lives in `YosysScript.cpp`, which gets `-fexceptions` on its
 // own and mentions no MLIR type at all; the pass keeps CIRCT's normal flags and

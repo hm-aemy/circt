@@ -1,4 +1,4 @@
-//===- YosysScript.cpp - Running a Yosys script, catchably ---------------===//
+//===- YosysScript.cpp - Running a Yosys script, catchably ----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // Compiled with `-fexceptions` (see this directory's CMakeLists.txt) and
-// deliberately free of MLIR and LLVM types -- see `YosysScript.h` for why.
+// deliberately free of MLIR and LLVM types; see `YosysScript.h` for why.
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,8 +22,9 @@
 
 namespace {
 /// Redirects Yosys' log for the duration of a scope, keeping what it wrote so a
-/// failure can quote it. Without this every run dumps Yosys' banner and per-pass
-/// headers onto stderr, which makes `--verify-diagnostics` tests unreadable.
+/// failure can quote it. Without this every run dumps Yosys' banner and
+/// per-pass headers onto stderr, which makes `--verify-diagnostics` tests
+/// unreadable.
 class LogCapture {
 public:
   explicit LogCapture(bool active) : active(active) {
