@@ -44,8 +44,14 @@ def ConstOp : MValueExpander, RTLILOp<"const",
     "bitwidth matches">
   ]> {
   let summary = "A constant run of bits";
+  let description = [{
+    Materializes one `RTLIL::Const`: the constant chunks of a SigSpec, and the
+    right-hand side of a constant connection. Bits are written most significant
+    first, so `rtlil.const "1010" : !rtlil<val[4]>` is 10.
+  }];
   let arguments = (ins ConstAttr:$value);
   let results = (outs MValueType:$result);
+  let assemblyFormat = "custom<ConstValue>($value) attr-dict `:` type($result)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -54,9 +60,9 @@ def ConstOp : MValueExpander, RTLILOp<"const",
 //
 // An `RTLIL::SigSpec` is a bit vector assembled from chunks, where each chunk is
 // either a slice of a wire or a run of constant bits. A design that has been
-// through `opt`, `techmap` or `abc` is full of them -- a `$_AND_` cell driving
-// one bit of a wide wire, say -- so the import cannot represent cell ports as
-// whole wires alone.
+// through `opt`, `techmap` or `abc` is full of them, a `$_AND_` cell driving
+// one bit of a wide wire being the typical case, so the import cannot represent
+// cell ports as whole wires alone.
 //
 // These two ops are that representation. A chunk that happens to cover a whole
 // wire, or a spec of exactly one chunk, stays bare: `rtlil.slice` and
@@ -66,7 +72,7 @@ def SliceOp : RTLILOp<"slice", [Pure]> {
   let summary = "A contiguous run of bits from a value";
   let description = [{
     `$offset` counts from bit 0 of `$input`, *not* from the wire's
-    `start_offset` -- that attribute is Verilog declaration cosmetics and is
+    `start_offset`: that attribute is Verilog declaration cosmetics and is
     carried on `rtlil.wire` separately. The number of bits taken is the width of
     the result.
   }];
@@ -91,6 +97,16 @@ def ConcatOp : RTLILOp<"concat", [Pure]> {
 // both as plain `int`.
 def WireOp : RTLILOp<"wire"> {
   let summary = "A named RTLIL wire, and the value its bits carry";
+  let description = [{
+    Models one `RTLIL::Wire`. The name keeps the RTLIL sigil, as
+    `RTLIL::IdString` does: `\a` for a source name, `$1` for one Yosys
+    invented. That sigil is what tells the two apart.
+
+    `rtlil.module` checks that the `port_id`s are exactly 1..N, which
+    `fixup_ports()` would otherwise silently impose. `start_offset` and `upto`
+    are Verilog declaration cosmetics (`wire [7:4]`, `wire [0:7]`) carried for
+    the backends; they do not affect bit numbering here.
+  }];
   let arguments = (ins StrAttr:$name
                        ,BoolAttr:$is_signed
                        ,DefaultValuedAttr<I32Attr, "0">:$port_id
@@ -128,7 +144,7 @@ def ModuleOp : RTLILOp<"module", [
   let description = [{
     Models one `RTLIL::Module`. The symbol name is the RTLIL identifier
     including its sigil, so a module Yosys calls `\demo` is `rtlil.module
-    @"\\demo"` here -- see `rtlil.wire` for why the sigil is part of the name.
+    @"\\demo"` here. See `rtlil.wire` for why the sigil is part of the name.
 
     Ports are not listed separately: in RTLIL a port *is* a wire with a non-zero
     `port_id`, and `RTLIL::Module::fixup_ports()` derives the port list from
@@ -190,6 +206,15 @@ def ModuleOp : RTLILOp<"module", [
 
 def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
   let summary = "A cell of any type, with its ports and parameters spelled out";
+  let description = [{
+    The generic form of an `RTLIL::Cell`, and the fallback for cell types with
+    no dedicated op. `$ports` names the port each `$connections` operand
+    attaches to, in order; `$parameters` is the parameter dict verbatim.
+
+    Prefer `rtlil.instance` when the type names another `rtlil.module`, and the
+    typed cell ops when they fit: those derive `$parameters` from the width
+    instead of storing a dict that could disagree with it.
+  }];
   let arguments = (ins StrAttr:$name
                        ,StrAttr:$type
                        ,Variadic<MValueType>:$connections
