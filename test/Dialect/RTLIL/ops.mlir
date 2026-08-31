@@ -18,10 +18,10 @@ rtlil.module @"\\top" {
   // anything else behind the exporter's back.
   %2 = "rtlil.wire"() <{name="$2", is_signed = true, port_input = false, port_output = true, upto = true, port_id = 1 : i32, start_offset = 3 : i32}> : () -> !rtlil<val[64]>
 
-  %3 = "rtlil.const"() <{value = [0 : i8, 1 : i8, 2 : i8, 3 : i8, 4 : i8]}> : () -> !rtlil<val[5]>
+  %3 = "rtlil.const"() <{value = #rtlil.const<"-zx10">}> : () -> !rtlil<val[5]>
   %4 = "rtlil.wire"() <{name="$4", is_signed = false}> : () -> !rtlil<val[32]>
   %5 = "rtlil.wire"() <{name="$5", is_signed = false}> : () -> !rtlil<val[32]>
-  %6 = "rtlil.const"() <{value = [0 : i8, 1 : i8, 2 : i8, 3 : i8, 4 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8, 0 : i8]}> : () -> !rtlil<val[32]>
+  %6 = "rtlil.const"() <{value = #rtlil.const<"000000000000000000000000000-zx10">}> : () -> !rtlil<val[32]>
 
   "rtlil.and"(%1, %6, %4) <{name="$and",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
   "rtlil.or"(%1, %6, %4) <{name="$or",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
@@ -51,7 +51,7 @@ rtlil.module @"\\top" {
 // least significant first.
 rtlil.module @"\\sigspec" {
   %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[8]>
-  %c = "rtlil.const"() <{value = [1 : i8, 0 : i8]}> : () -> !rtlil<val[2]>
+  %c = "rtlil.const"() <{value = #rtlil.const<"01">}> : () -> !rtlil<val[2]>
   %s = "rtlil.slice"(%w) <{offset = 3 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
   %y = "rtlil.concat"(%s, %c) : (!rtlil<val[4]>, !rtlil<val[2]>) -> !rtlil<val[6]>
 }
@@ -64,7 +64,7 @@ rtlil.module @"\\params" {
     name = "$c", type = "$lut", ports = ["\\A"],
     parameters = [
       #rtlil.param<"\\WIDTH" 4 : i32>,
-      #rtlil.param<"\\UNDEF" [2 : i8, 3 : i8, 0 : i8, 1 : i8]>,
+      #rtlil.param<"\\UNDEF" #rtlil.const<"10zx">>,
       #rtlil.param<"\\SRC" "foo.v:3.1-3.9">
     ]
   }> : (!rtlil<val[1]>) -> ()

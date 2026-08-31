@@ -270,17 +270,16 @@ struct ConstantConversion : ConversionPatternBase<hw::ConstantOp> {
     const llvm::APInt &intVal = adaptor.getValueAttr().getValue();
     unsigned width = intVal.getBitWidth();
 
-    llvm::SmallVector<Attribute> v;
-    v.reserve(width);
-    // Least significant bit first, the order both `ConstAttr` and
-    // `RTLIL::Const` use.
+    llvm::SmallVector<rtlil::StateEnum> bits;
+    bits.reserve(width);
+    // Least significant bit first, the order both `#rtlil.const` and
+    // `RTLIL::Const` store.
     for (unsigned idx = 0; idx < width; idx++)
-      v.emplace_back(rtlil::StateEnumAttr::get(
-          getContext(),
-          intVal[idx] ? rtlil::StateEnum::S1 : rtlil::StateEnum::S0));
+      bits.emplace_back(intVal[idx] ? rtlil::StateEnum::S1
+                                    : rtlil::StateEnum::S0);
 
-    rewriter.replaceOpWithNewOp<rtlil::ConstOp>(op, outType,
-                                                rewriter.getArrayAttr(v));
+    rewriter.replaceOpWithNewOp<rtlil::ConstOp>(
+        op, outType, rtlil::ConstAttr::get(getContext(), bits));
     return success();
   }
 };

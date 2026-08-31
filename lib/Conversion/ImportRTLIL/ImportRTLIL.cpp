@@ -73,10 +73,9 @@ private:
   Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
                       Operation *diagnosticOp);
 
-  /// The `ConstAttr` bit array for one `RTLIL::Const`, which is what
-  /// `rtlil.const` takes.
-  FailureOr<ArrayAttr> importBits(const Yosys::RTLIL::Const &value,
-                                  Location loc);
+  /// The bit vector for one `RTLIL::Const`, as `rtlil.const` takes it.
+  FailureOr<rtlil::ConstAttr> importBits(const Yosys::RTLIL::Const &value,
+                                         Location loc);
 
   /// The attribute for one `RTLIL::Const` used as a parameter or an attribute
   /// value, where an `IntegerAttr` or `StringAttr` is preferable when it fits.
@@ -145,9 +144,9 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
   StringRef(src).split(pieces, '|', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
   for (StringRef piece : pieces)
     if (auto parsed = parseSrcPiece(piece))
-      locations.push_back(FileLineColLoc::get(
-          builder.getStringAttr(parsed->first), parsed->second.first,
-          parsed->second.second));
+      locations.push_back(
+          FileLineColLoc::get(builder.getStringAttr(parsed->first),
+                              parsed->second.first, parsed->second.second));
 
   if (locations.empty())
     return builder.getUnknownLoc();
@@ -156,9 +155,9 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
   return builder.getFusedLoc(locations);
 }
 
-FailureOr<ArrayAttr> Importer::importBits(const Yosys::RTLIL::Const &value,
-                                          Location loc) {
-  SmallVector<Attribute> bits;
+FailureOr<rtlil::ConstAttr>
+Importer::importBits(const Yosys::RTLIL::Const &value, Location loc) {
+  SmallVector<rtlil::StateEnum> bits;
   bits.reserve(value.size());
   // `to_bits()` is public and works whichever backing the Const uses.
   for (Yosys::RTLIL::State bit : value.to_bits()) {
@@ -181,30 +180,30 @@ FailureOr<ArrayAttr> Importer::importBits(const Yosys::RTLIL::Const &value,
       break;
     default:
       // `Sm` is a marker a few Yosys passes use internally and has no
-      // StateEnumAttr case. Range-check rather than casting an out-of-range
+      // `StateEnum` case. Range-check rather than casting an out-of-range
       // value, which would be undefined behaviour rather than a diagnostic.
       return mlir::emitError(loc)
              << "constant contains RTLIL state " << int(bit)
              << ", which the rtlil dialect cannot represent";
     }
-    bits.push_back(rtlil::StateEnumAttr::get(context, state));
+    bits.push_back(state);
   }
-  return builder.getArrayAttr(bits);
+  return rtlil::ConstAttr::get(context, bits);
 }
 
 FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
                                            Location loc) {
   // The only sound discriminator is the flag. `Const::is_str()` is private, and
-  // `Const(long long, int)` uses the string backing internally for byte-multiple
-  // widths, so the backing tag says nothing about intent. `decode_string()`
-  // also drops NUL bytes, which makes it lossy on anything that is not really a
-  // string.
+  // `Const(long long, int)` uses the string backing internally for
+  // byte-multiple widths, so the backing tag says nothing about intent.
+  // `decode_string()` also drops NUL bytes, which makes it lossy on anything
+  // that is not really a string.
   if (value.flags & Yosys::RTLIL::CONST_FLAG_STRING)
     return Attribute(builder.getStringAttr(value.decode_string()));
 
   // A fully defined value narrow enough to fit becomes an `IntegerAttr`. That
   // is what the dialect's own `#rtlil.param` builder produces, and it is what
-  // makes `\A_WIDTH 8` readable instead of a 32-element array of `0 : i8`.
+  // makes `\A_WIDTH 8` readable instead of a 32-character bit string.
   // Export expands it back to the same bits, so nothing is lost.
   //
   // Only for *parameters and attributes*: `rtlil.const` needs the bit array,
@@ -218,8 +217,8 @@ FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
     for (unsigned i = 0, e = rawBits.size(); i != e; ++i)
       if (rawBits[i] == Yosys::RTLIL::State::S1)
         intVal.setBit(i);
-    return Attribute(builder.getIntegerAttr(
-        builder.getIntegerType(rawBits.size()), intVal));
+    return Attribute(
+        builder.getIntegerAttr(builder.getIntegerType(rawBits.size()), intVal));
   }
 
   auto bits = importBits(value, loc);
@@ -257,9 +256,9 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
     auto imported = importConst(*value, loc);
     if (failed(imported))
       return failure();
-    entries.push_back(rtlil::ParameterAttr::get(
-        context, builder.getStringAttr(name), *imported,
-        nonDefaultFlags(*value)));
+    entries.push_back(
+        rtlil::ParameterAttr::get(context, builder.getStringAttr(name),
+                                  *imported, nonDefaultFlags(*value)));
   }
   return builder.getArrayAttr(entries);
 }
@@ -345,9 +344,9 @@ LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
     auto imported = importConst(*value, loc);
     if (failed(imported))
       return failure();
-    parameters.push_back(rtlil::ParameterAttr::get(
-        context, builder.getStringAttr(name), *imported,
-        nonDefaultFlags(*value)));
+    parameters.push_back(
+        rtlil::ParameterAttr::get(context, builder.getStringAttr(name),
+                                  *imported, nonDefaultFlags(*value)));
   }
 
   auto attributes = importAttributes(*cell, loc);
@@ -488,9 +487,8 @@ void circt::rtlil::registerImportRTLILTranslation() {
         // A malformed `.il` reaches `log_error` and ends the process; the hook
         // installed by `yosys::initialize()` is the only thing that gets a
         // message out first.
-        Yosys::Frontend::frontend_call(&design, streamPtr,
-                                       buffer->getBufferIdentifier().str(),
-                                       "rtlil");
+        Yosys::Frontend::frontend_call(
+            &design, streamPtr, buffer->getBufferIdentifier().str(), "rtlil");
 
         OwningOpRef<mlir::ModuleOp> module(
             mlir::ModuleOp::create(UnknownLoc::get(context)));

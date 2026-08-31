@@ -69,8 +69,33 @@ def ParamArrayAttr
 // Connectivity Attributes
 //===----------------------------------------------------------------------===//
 
-def ConstAttr
-  : TypedArrayAttrBase<StateEnumAttr, "constant multi-valued bitvec">;
+def ConstAttr : AttrDef<RTLILDialect, "Const"> {
+  let mnemonic = "const";
+  let summary = "constant multi-valued bitvec";
+  let description = [{
+    The general form of an `RTLIL::Const`, written as a bit string over the
+    alphabet of `RTLIL::Const::as_string()`: `0`, `1`, `x`, `z` and `-` (`Sa`).
+
+    The string is most significant bit first, as RTLIL's own `4'1010` reads.
+    `$bits` is stored the other way round, matching `RTLIL::Const::to_bits()`
+    and the operand order of `rtlil.concat`.
+  }];
+  let parameters = (ins ArrayRefParameter<"::circt::rtlil::StateEnum">:$bits);
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDeclaration = [{
+    /// Named to match `RTLIL::Const::size()`, and used by the `rtlil.const`
+    /// bitwidth trait.
+    size_t size() const { return getBits().size(); }
+
+    /// The printed form of the bits, most significant first.
+    std::string getBitString() const;
+
+    /// The attribute for such a bit string, or a null attribute if any
+    /// character is not one of `01xz-`.
+    static ConstAttr getFromBitString(::mlir::MLIRContext *context,
+                                      ::llvm::StringRef bits);
+  }];
+}
 
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILATTRIBUTES_TD

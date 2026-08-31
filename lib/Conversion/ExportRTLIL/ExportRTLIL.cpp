@@ -75,13 +75,13 @@ static Yosys::RTLIL::State toState(rtlil::StateEnum state) {
   llvm_unreachable("unhandled RTLIL state");
 }
 
-static std::vector<Yosys::RTLIL::State> toBits(ArrayAttr value) {
+static std::vector<Yosys::RTLIL::State> toBits(rtlil::ConstAttr value) {
   std::vector<Yosys::RTLIL::State> bits;
   bits.reserve(value.size());
-  // Least significant bit first, the order both `ConstAttr` and `RTLIL::Const`
-  // use.
-  for (Attribute bit : value)
-    bits.push_back(toState(cast<rtlil::StateEnumAttr>(bit).getValue()));
+  // Least significant bit first, the order both `#rtlil.const` and
+  // `RTLIL::Const` store.
+  for (rtlil::StateEnum bit : value.getBits())
+    bits.push_back(toState(bit));
   return bits;
 }
 
@@ -91,8 +91,8 @@ static Yosys::RTLIL::Const toConst(Attribute value,
   Yosys::RTLIL::Const result;
   if (auto str = dyn_cast<StringAttr>(value)) {
     result = Yosys::RTLIL::Const(str.getValue().str());
-  } else if (auto array = dyn_cast<ArrayAttr>(value)) {
-    result = Yosys::RTLIL::Const(toBits(array));
+  } else if (auto bitVector = dyn_cast<rtlil::ConstAttr>(value)) {
+    result = Yosys::RTLIL::Const(toBits(bitVector));
   } else {
     // Expand the APInt bit by bit rather than going through `getInt()`, which
     // truncates -- and asserts -- above 64 bits. `$lut` masks are routinely

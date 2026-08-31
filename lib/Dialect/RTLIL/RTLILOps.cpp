@@ -16,6 +16,30 @@
 using namespace circt;
 using namespace rtlil;
 
+//===----------------------------------------------------------------------===//
+// Custom directives
+//===----------------------------------------------------------------------===//
+
+/// The value of `rtlil.const`, as the bare bit string `#rtlil.const` would
+/// print inside its angle brackets: `rtlil.const "10xz" : !rtlil<val[4]>`
+/// rather than `rtlil.const #rtlil.const<"10xz"> : ...`.
+static ParseResult parseConstValue(OpAsmParser &parser, ConstAttr &value) {
+  llvm::SMLoc loc = parser.getCurrentLocation();
+  std::string bits;
+  if (parser.parseString(&bits))
+    return failure();
+  value = ConstAttr::getFromBitString(parser.getContext(), bits);
+  if (!value)
+    return parser.emitError(
+        loc, "expected a bit string of '0', '1', 'x', 'z' and '-'");
+  return success();
+}
+
+static void printConstValue(OpAsmPrinter &printer, Operation *,
+                            ConstAttr value) {
+  printer << '"' << value.getBitString() << '"';
+}
+
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.cpp.inc"
 
