@@ -280,7 +280,7 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
       if (failed(value))
         return {};
       pieces.push_back(
-          builder.create<rtlil::ConstOp>(loc, getType(chunk.width), *value));
+          rtlil::ConstOp::create(builder, loc, getType(chunk.width), *value));
       continue;
     }
 
@@ -298,9 +298,9 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
       pieces.push_back(wire);
       continue;
     }
-    pieces.push_back(builder.create<rtlil::SliceOp>(
-        loc, getType(chunk.width), wire, builder.getI32IntegerAttr(
-                                              chunk.offset)));
+    pieces.push_back(
+        rtlil::SliceOp::create(builder, loc, getType(chunk.width), wire,
+                               builder.getI32IntegerAttr(chunk.offset)));
   }
 
   if (pieces.empty()) {
@@ -309,7 +309,7 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
   }
   if (pieces.size() == 1)
     return pieces.front();
-  return builder.create<rtlil::ConcatOp>(loc, getType(spec.size()), pieces);
+  return rtlil::ConcatOp::create(builder, loc, getType(spec.size()), pieces);
 }
 
 //===----------------------------------------------------------------------===//
@@ -357,15 +357,15 @@ LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
   StringRef type = toStringRef(cell->type);
   StringAttr name = builder.getStringAttr(toStringRef(cell->name));
   if (moduleNames.contains(type)) {
-    builder.create<rtlil::InstanceOp>(
-        loc, name, FlatSymbolRefAttr::get(context, type), connections,
-        builder.getArrayAttr(portNames), builder.getArrayAttr(parameters),
-        *attributes);
+    rtlil::InstanceOp::create(builder, loc, name,
+                              FlatSymbolRefAttr::get(context, type),
+                              connections, builder.getArrayAttr(portNames),
+                              builder.getArrayAttr(parameters), *attributes);
     return success();
   }
-  builder.create<rtlil::CellOp>(loc, name, builder.getStringAttr(type),
-                                connections, builder.getArrayAttr(portNames),
-                                builder.getArrayAttr(parameters), *attributes);
+  rtlil::CellOp::create(builder, loc, name, builder.getStringAttr(type),
+                        connections, builder.getArrayAttr(portNames),
+                        builder.getArrayAttr(parameters), *attributes);
   return success();
 }
 
@@ -394,8 +394,8 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
   for (const auto &parameter : source->avail_parameters)
     availParameters.push_back(builder.getStringAttr(toStringRef(parameter)));
 
-  auto moduleOp = builder.create<rtlil::ModuleOp>(
-      loc, builder.getStringAttr(name), *attributes,
+  auto moduleOp = rtlil::ModuleOp::create(
+      builder, loc, builder.getStringAttr(name), *attributes,
       builder.getArrayAttr(availParameters));
   currentModule = moduleOp;
   wireValues.clear();
@@ -411,14 +411,15 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
     auto wireAttributes = importAttributes(*wire, wireLoc);
     if (failed(wireAttributes))
       return failure();
-    auto wireOp = builder.create<rtlil::WireOp>(
-        wireLoc, getType(wire->width), builder.getStringAttr(toStringRef(wire->name)),
-        builder.getBoolAttr(wire->is_signed),
-        builder.getI32IntegerAttr(wire->port_id),
-        builder.getI32IntegerAttr(wire->start_offset),
-        builder.getBoolAttr(wire->port_input),
-        builder.getBoolAttr(wire->port_output),
-        builder.getBoolAttr(wire->upto), *wireAttributes);
+    auto wireOp =
+        rtlil::WireOp::create(builder, wireLoc, getType(wire->width),
+                              builder.getStringAttr(toStringRef(wire->name)),
+                              builder.getBoolAttr(wire->is_signed),
+                              builder.getI32IntegerAttr(wire->port_id),
+                              builder.getI32IntegerAttr(wire->start_offset),
+                              builder.getBoolAttr(wire->port_input),
+                              builder.getBoolAttr(wire->port_output),
+                              builder.getBoolAttr(wire->upto), *wireAttributes);
     wireValues.try_emplace(wire, wireOp.getResult());
   }
 
@@ -431,7 +432,7 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
     Value rhsValue = importSigSpec(rhs, loc, nullptr);
     if (!lhsValue || !rhsValue)
       return failure();
-    builder.create<rtlil::WConnectionOp>(loc, lhsValue, rhsValue);
+    rtlil::WConnectionOp::create(builder, loc, lhsValue, rhsValue);
   }
 
   return success();
