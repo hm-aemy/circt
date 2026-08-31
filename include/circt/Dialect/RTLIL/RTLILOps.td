@@ -43,6 +43,7 @@ def ConstOp : MValueExpander, RTLILOp<"const",
     ["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"],
     "bitwidth matches">
   ]> {
+  let summary = "A constant run of bits";
   let arguments = (ins ConstAttr:$value);
   let results = (outs MValueType:$result);
 }
@@ -86,8 +87,10 @@ def ConcatOp : RTLILOp<"concat", [Pure]> {
   let hasVerifier = 1;
 }
 
-// TODO Is I32 correct?
+// `port_id` and `start_offset` are `I32Attr` because `RTLIL::Wire` declares
+// both as plain `int`.
 def WireOp : RTLILOp<"wire"> {
+  let summary = "A named RTLIL wire, and the value its bits carry";
   let arguments = (ins StrAttr:$name
                        ,BoolAttr:$is_signed
                        ,DefaultValuedAttr<I32Attr, "0">:$port_id
@@ -186,6 +189,7 @@ def ModuleOp : RTLILOp<"module", [
 
 
 def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
+  let summary = "A cell of any type, with its ports and parameters spelled out";
   let arguments = (ins StrAttr:$name
                        ,StrAttr:$type
                        ,Variadic<MValueType>:$connections
@@ -201,6 +205,7 @@ class FixedOperands<int n> : AllMatch<["getNumOperands()", "" # n], "has " # n #
 class FixedWidths<list<string> widths> : MValueExpander, TraitList<!foreach(idx, !range(widths), AllMatch<["::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
 
 class BinOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "$width"]>]> {
+  let summary = "The RTLIL `" # t # "` cell, with equally wide A, B and Y ports";
   let arguments = (ins StrAttr:$name,
                       Variadic<MValueType>:$connections,
                       I32Attr:$width,
@@ -224,6 +229,7 @@ def AddOp : BinOp<"add">;
 def SubOp : BinOp<"sub">;
 
 def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<4>, FixedWidths<["$width", "$width", "1", "$width"]>]> {
+  let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
   let arguments = (ins StrAttr:$name,
                       Variadic<MValueType>:$connections,
                       I32Attr:$width,
@@ -237,6 +243,7 @@ def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
 }
 
 class CmpOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "1"]>]> {
+  let summary = "The RTLIL `" # t # "` cell, comparing A and B into a one-bit Y";
   let arguments = (ins StrAttr:$name,
                       Variadic<MValueType>:$connections,
                       I32Attr:$width,
@@ -262,6 +269,7 @@ def LEOp : CmpOp<"le">;
 def LTOp : CmpOp<"lt">;
 
 def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["1", "$width", "$width"]>]> {
+  let summary = "The RTLIL `dff` cell: Q takes D on the rising CLK edge";
   let arguments = (ins StrAttr:$name,
                       Variadic<MValueType>:$connections,
                       I32Attr:$width,
@@ -276,6 +284,7 @@ def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
 }
 
 def ALDFFOp : RTLILOp<"aldff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<5>, FixedWidths<["1", "$width", "1", "$width", "$width"]>]> {
+  let summary = "The RTLIL `aldff` cell: a `dff` that loads AD while ALOAD is 1";
   let arguments = (ins StrAttr:$name,
                       Variadic<MValueType>:$connections,
                       I32Attr:$width,
