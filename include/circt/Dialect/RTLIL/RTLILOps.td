@@ -38,7 +38,11 @@ class RTLILOp<string mnemonic, list<Trait> traits = []> :
 // Wire related operations and primitives
 //===----------------------------------------------------------------------===//
 
-def ConstOp : MValueExpander, RTLILOp<"const", [AllMatch<["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"], "bitwidth matches">]> {
+def ConstOp : MValueExpander, RTLILOp<"const",
+  [Pure, AllMatch<
+    ["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"],
+    "bitwidth matches">
+  ]> {
   let arguments = (ins ConstAttr:$value);
   let results = (outs MValueType:$result);
 }
