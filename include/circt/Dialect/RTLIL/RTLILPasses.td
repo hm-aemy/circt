@@ -29,7 +29,7 @@ def RunYosys : Pass<"rtlil-run-yosys", "mlir::ModuleOp"> {
     The design is replaced rather than updated: a Yosys script adds, deletes,
     renames and re-parameterises modules, so there is no meaningful incremental
     mapping back onto the ops that went in. Names and source locations are what
-    survive -- `\`-prefixed identifiers are carried through `opt`, `techmap` and
+    survive: `\`-prefixed identifiers are carried through `opt`, `techmap` and
     `abc` untouched, and locations travel as RTLIL `src` attributes.
 
     Anything in the top-level module that is not an `rtlil.module` is left

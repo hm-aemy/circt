@@ -20,25 +20,27 @@ include "circt/Dialect/RTLIL/RTLILEnums.td"
 // Parameter Attributes
 //===----------------------------------------------------------------------===//
 
-// Mirror `dict<RTLIL::IdString, RTLIL::Const>` used in `RTLIL::AttrObject` for
-// attributes and in `RTLIL::Cell` for parameters.
-//
-// `$value` is deliberately a bare `Attribute` rather than an `IntegerAttr`: an
-// `RTLIL::Const` is either a string or a bit vector of arbitrary width that may
-// contain `x` and `z`, and Yosys hands back plenty of both ($lut masks, $mem
-// INIT, string parameters). It holds one of:
-//
-//   * `IntegerAttr` -- the convenient case, and what the derived `parameters`
-//     attributes below construct;
-//   * `ConstAttr`   -- an explicit bit vector, for widths over 64 or any value
-//     containing `x`/`z`;
-//   * `StringAttr`  -- a string parameter.
-//
-// `$flags` carries `RTLIL::Const::flags` verbatim so that CONST_FLAG_STRING,
-// _SIGNED and _REAL survive a round trip.
 def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
   let mnemonic = "param";
-  let summary = "Connect `RTLIL::Const` to `RTLIL::IdString`";
+  let summary = "One `RTLIL::IdString` and the `RTLIL::Const` it names";
+  let description = [{
+    One entry of the `dict<RTLIL::IdString, RTLIL::Const>` that
+    `RTLIL::AttrObject` uses for attributes and `RTLIL::Cell` for parameters.
+
+    `$value` is deliberately a bare `Attribute` rather than an `IntegerAttr`: an
+    `RTLIL::Const` is either a string or a bit vector of arbitrary width that
+    may contain `x` and `z`, and Yosys hands back plenty of both (`$lut` masks,
+    `$mem` INIT, string parameters). It holds one of:
+
+      * `IntegerAttr`: the convenient case, and what the derived `parameters`
+        attributes below construct;
+      * `ConstAttr`: an explicit bit vector, for widths over 64 or any value
+        containing `x`/`z`;
+      * `StringAttr`: a string parameter.
+
+    `$flags` carries `RTLIL::Const::flags` verbatim so that `CONST_FLAG_STRING`,
+    `_SIGNED` and `_REAL` survive a round trip.
+  }];
   let parameters = (ins
                     "::mlir::StringAttr":$name,
                     "::mlir::Attribute":$value,
@@ -62,7 +64,12 @@ def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
 def ParamArrayAttr
   : TypedArrayAttrBase<ParamAttr, "cell parameters"> {
   let constBuilderCall = "::circt::rtlil::createParamArrayAttr($_builder.getContext(), $0)";
-  let summary = "Dict of `RTLIL::Const` and `RTLIL::IdString`";
+  let summary = "A dict of `RTLIL::Const`, keyed by `RTLIL::IdString`";
+  let description = [{
+    The parameter dict of a cell and the attribute dict of anything that
+    carries one. Order is the order Yosys handed the entries over; nothing
+    here depends on it.
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -71,7 +78,7 @@ def ParamArrayAttr
 
 def ConstAttr : AttrDef<RTLILDialect, "Const"> {
   let mnemonic = "const";
-  let summary = "constant multi-valued bitvec";
+  let summary = "A constant multi-valued bit vector";
   let description = [{
     The general form of an `RTLIL::Const`, written as a bit string over the
     alphabet of `RTLIL::Const::as_string()`: `0`, `1`, `x`, `z` and `-` (`Sa`).

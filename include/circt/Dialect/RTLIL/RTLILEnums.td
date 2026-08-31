@@ -34,7 +34,7 @@ def Signed : I8EnumAttrCase<"Signed", 1, "signed">;
 /// Unsigned means that the contents are just raw bits.
 def Unsigned : I8EnumAttrCase<"Unsigned", 0, "unsigned">;
 
-def Signedness : I8EnumAttr<"Signedness", "signedness of an rtlil wire",
+def Signedness : I8EnumAttr<"Signedness", "Signedness of an RTLIL wire",
                                    [Signed, Unsigned]>;
 
 
@@ -47,7 +47,7 @@ def Input : I8EnumAttrCase<"Input", 0, "in">;
 def Output : I8EnumAttrCase<"Output", 1, "out">;
 def InputOutput : I8EnumAttrCase<"InputOutput", 2, "inout">;
 
-def PortDirection : I8EnumAttr<"PortDirection", "Direction of a wire port",
+def PortDirection : I8EnumAttr<"PortDirection", "Direction of an RTLIL wire port",
                                    [Input, Output, InputOutput]>;
 
 //----------------------------------------------------------------------------//
@@ -61,7 +61,7 @@ def StateSx: I8EnumAttrCase<"Sx", 2>;
 def StateSz: I8EnumAttrCase<"Sz", 3>;
 def StateSa: I8EnumAttrCase<"Sa", 4>;
 
-def StateEnumAttr: I8EnumAttr<"StateEnum", "RTLIL::State model",
+def StateEnumAttr: I8EnumAttr<"StateEnum", "The five-valued `RTLIL::State` model",
     [StateS0, StateS1, StateSx, StateSz, StateSa]> {
   let stringToSymbolFnName = "ConvertToEnum";
   let symbolToStringFnName = "ConvertToString";

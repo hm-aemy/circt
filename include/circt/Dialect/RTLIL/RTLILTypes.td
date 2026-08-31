@@ -14,7 +14,7 @@ include "circt/Dialect/RTLIL/RTLILDialect.td"
 
 def MValueType : TypeDef<RTLILDialect, "MValue"> {
   let mnemonic = "val";
-  let summary = "fixed-width RTLIL::State sequence";
+  let summary = "A fixed-width sequence of `RTLIL::State` bits";
   let description = [{
     The value carried by every RTLIL wire and cell port: `$width` bits, each of
     which is one of the five `RTLIL::State` cases rather than a plain 0/1.
