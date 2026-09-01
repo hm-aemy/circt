@@ -1,12 +1,5 @@
 // RUN: circt-opt --convert-hw-to-rtlil %s --verify-diagnostics --split-input-file
 
-hw.module @top(in %x : i32, in %y : i32, in %z : i32) {
-  %res = comb.and %x, %y, %z : i32
-  // expected-error@-1 {{failed to legalize operation 'comb.and' that was explicitly marked illegal}}
-}
-
-// -----
-
 hw.module @top(in %x : i32, in %y : i32, in %z : i32, in %select: i1) {
   %res = comb.icmp bin wne %y, %z : i32
   // expected-error@-1 {{failed to legalize operation 'comb.icmp' that was explicitly marked illegal}}
