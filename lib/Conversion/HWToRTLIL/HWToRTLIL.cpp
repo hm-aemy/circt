@@ -194,11 +194,12 @@ struct FirRegOpResetConversion : ConversionPatternBase<seq::FirRegOp> {
   }
 };
 
-template <typename BinOp, typename ResultOp, typename = void>
+template <typename BinOp, typename ResultOp, bool OpsSigned = false,
+          typename = void>
 struct BinOpConversion;
 
-template <typename BinOp, typename ResultOp>
-struct BinOpConversion<BinOp, ResultOp,
+template <typename BinOp, typename ResultOp, bool OpsSigned>
+struct BinOpConversion<BinOp, ResultOp, OpsSigned,
                        std::enable_if_t<std::is_member_function_pointer_v<
                            decltype(&BinOp::getInputs)>>>
     : ConversionPatternBase<BinOp> {
@@ -216,14 +217,14 @@ struct BinOpConversion<BinOp, ResultOp,
         {adaptor.getInputs()[0], adaptor.getInputs()[1], resultWire});
     ResultOp::create(
         r, op->getLoc(), Super::genUniqueLocalName(r), std::move(connections),
-        op.getInputs()[0].getType().getIntOrFloatBitWidth(), false);
+        op.getInputs()[0].getType().getIntOrFloatBitWidth(), OpsSigned);
     r.replaceOp(op, resultWire);
     return success();
   }
 };
 
-template <typename BinOp, typename ResultOp>
-struct BinOpConversion<BinOp, ResultOp,
+template <typename BinOp, typename ResultOp, bool OpsSigned>
+struct BinOpConversion<BinOp, ResultOp, OpsSigned,
                        std::enable_if_t<std::is_member_function_pointer_v<
                            decltype(&BinOp::getLhs)>>>
     : ConversionPatternBase<BinOp> {
@@ -241,7 +242,7 @@ struct BinOpConversion<BinOp, ResultOp,
         {adaptor.getLhs(), adaptor.getRhs(), resultWire});
     ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r),
                      std::move(connections),
-                     op.getLhs().getType().getIntOrFloatBitWidth(), false);
+                     op.getLhs().getType().getIntOrFloatBitWidth(), OpsSigned);
     r.replaceOp(op, resultWire);
     return success();
   }
@@ -550,7 +551,11 @@ static void populateHWToRTLILConversionPatterns(
            BinOpConversion<comb::XorOp, rtlil::XorOp>,
            BinOpConversion<comb::AddOp, rtlil::AddOp>,
            BinOpConversion<comb::SubOp, rtlil::SubOp>,
-           BinOpConversion<comb::MulOp, rtlil::MulOp>, MuxOpConversion,
+           BinOpConversion<comb::MulOp, rtlil::MulOp>,
+           BinOpConversion<comb::DivUOp, rtlil::DivOp>,
+           BinOpConversion<comb::DivSOp, rtlil::DivOp, true>,
+           BinOpConversion<comb::ModUOp, rtlil::ModOp>,
+           BinOpConversion<comb::ModSOp, rtlil::ModOp, true>, MuxOpConversion,
            InstanceConversion, CompRegOpResetConversion, CompRegOpConversion,
            FirRegOpResetConversion, FirRegOpConversion, ConstantConversion,
            ICMPConversion, ConcatConversion, ExtractConversion>(

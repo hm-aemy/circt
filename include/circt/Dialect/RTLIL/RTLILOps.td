@@ -254,6 +254,8 @@ def XorOp : BinOp<"xor">;
 def AddOp : BinOp<"add">;
 def SubOp : BinOp<"sub">;
 def MulOp : BinOp<"mul">;
+def DivOp : BinOp<"div">;
+def ModOp : BinOp<"mod">;
 
 def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<4>, FixedWidths<["$width", "$width", "1", "$width"]>]> {
   let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";

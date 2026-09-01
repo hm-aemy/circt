@@ -28,6 +28,8 @@ rtlil.module @"\\top" {
   "rtlil.sub"(%1, %6, %4) <{name="$sub",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
   "rtlil.xor"(%1, %6, %4) <{name="$xor",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
   "rtlil.mul"(%1, %6, %4) <{name="$mul",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  "rtlil.div"(%1, %6, %4) <{name="$div",width= 32 : i32, opsSigned = 1 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  "rtlil.mod"(%1, %6, %4) <{name="$mod",width= 32 : i32, opsSigned = 1 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
 
   %8 = "rtlil.wire"() <{name="$8", is_signed = false}> : () -> !rtlil<val[1]>
   "rtlil.gt"(%1, %6, %8) <{name="$gt",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
