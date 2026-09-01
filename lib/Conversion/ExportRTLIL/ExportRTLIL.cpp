@@ -29,7 +29,9 @@
 #include "mlir/IR/Location.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -175,6 +177,9 @@ private:
   Yosys::RTLIL::Design *design;
   Yosys::RTLIL::Module *module = nullptr;
   llvm::DenseMap<Value, Yosys::RTLIL::SigSpec> signals;
+  /// The values `lookup` is part-way through, to catch a cyclic slice/concat
+  /// chain: the body is a graph region, so nothing forbids one.
+  llvm::DenseSet<Value> visiting;
 };
 } // namespace
 
@@ -311,6 +316,15 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
     user->emitError("operand has no defining operation");
     return std::nullopt;
   }
+
+  if (!visiting.insert(value).second) {
+    definingOp->emitError("value is defined in terms of itself; the slice and "
+                          "concat chain feeding this operation is cyclic")
+        .attachNote(user->getLoc())
+        << "cycle reached again from here";
+    return std::nullopt;
+  }
+  auto leaveScope = llvm::make_scope_exit([&] { visiting.erase(value); });
 
   Yosys::RTLIL::SigSpec spec;
   if (auto constant = dyn_cast<rtlil::ConstOp>(definingOp)) {

@@ -44,3 +44,17 @@ rtlil.module @"\\dup" {
 // expected-error@+1 {{redefinition of symbol named '\dup'}}
 rtlil.module @"\\dup" {
 }
+
+// -----
+
+// A slice/concat chain that feeds back into itself. The body is a graph region,
+// so the cycle parses and verifies; `lookup` used to recurse into it until the
+// stack ran out.
+rtlil.module @"\\top" {
+  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[4]>
+  // expected-error@+1 {{value is defined in terms of itself}}
+  %s = "rtlil.slice"(%c) <{offset = 0 : i32}> : (!rtlil<val[4]>) -> !rtlil<val[4]>
+  // expected-note@+1 {{cycle reached again from here}}
+  %c = "rtlil.concat"(%s) : (!rtlil<val[4]>) -> !rtlil<val[4]>
+  "rtlil.wconnection"(%w, %s) : (!rtlil<val[4]>, !rtlil<val[4]>) -> ()
+}
