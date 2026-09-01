@@ -55,6 +55,33 @@ using namespace comb;
 namespace {
 
 using rtlil::ConversionPatternBase;
+
+/// Build a synchronously reset register.
+/// Combination of `rtlil.dff` and `rtlil.mux` for the reset value.
+template <typename Pattern>
+static rtlil::WireOp genSyncResetReg(const Pattern &pattern, Location loc,
+                                     mlir::ConversionPatternRewriter &rewriter,
+                                     StringAttr name, Value data, Value clk,
+                                     Value next, Value reset,
+                                     Value resetValue) {
+  rtlil::WireOp resultWire = pattern.genLocalWire(loc, data, rewriter);
+  if (!resultWire)
+    return {};
+  rtlil::WireOp muxWire = pattern.genLocalWire(loc, data, rewriter);
+  if (!muxWire)
+    return {};
+
+  // `rtlil.mux` drives Y with B while S is 1, so the reset value goes on B.
+  Value muxConnections[4] = {next, resetValue, reset, muxWire};
+  rtlil::MuxOp::create(rewriter, loc, pattern.genUniqueLocalName(rewriter),
+                       muxConnections, resultWire.getWidth());
+
+  Value dffConnections[3] = {clk, muxWire, resultWire};
+  rtlil::DFFOp::create(rewriter, loc, name, dffConnections,
+                       resultWire.getWidth());
+  return resultWire;
+}
+
 struct CompRegOpResetConversion : ConversionPatternBase<seq::CompRegOp> {
   using ConversionPatternBase<seq::CompRegOp>::ConversionPatternBase;
 
@@ -64,16 +91,15 @@ struct CompRegOpResetConversion : ConversionPatternBase<seq::CompRegOp> {
     if (!op.getReset() || op.getInitialValue()) {
       return failure();
     }
-    rtlil::WireOp resultWire =
-        genLocalWire(op->getLoc(), op.getData(), rewriter);
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
-    std::vector<Value> connections({adaptor.getClk(), adaptor.getInput(),
-                                    adaptor.getReset(), adaptor.getResetValue(),
-                                    resultWire});
-    rtlil::ALDFFOp::create(rewriter, op->getLoc(), name, std::move(connections),
-                           resultWire.getWidth());
+    // Follow SeqToSV and use synchronous reset style.
+    rtlil::WireOp resultWire = genSyncResetReg(
+        *this, op->getLoc(), rewriter, name, op.getData(), adaptor.getClk(),
+        adaptor.getInput(), adaptor.getReset(), adaptor.getResetValue());
+    if (!resultWire)
+      return failure();
     rewriter.replaceOp(op, resultWire);
     return success();
   }
@@ -142,41 +168,26 @@ struct FirRegOpResetConversion : ConversionPatternBase<seq::FirRegOp> {
     if (!op.getReset() || op.getPreset()) {
       return failure();
     }
-    rtlil::WireOp resultWire =
-        genLocalWire(op->getLoc(), op.getData(), rewriter);
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
-    std::vector<Value> connections({adaptor.getClk(), adaptor.getNext(),
-                                    adaptor.getReset(), adaptor.getResetValue(),
-                                    resultWire});
+    rtlil::WireOp resultWire;
     if (op.getIsAsync()) {
-      rtlil::ALDFFOp::create(rewriter, op->getLoc(), name,
-                             std::move(connections), resultWire.getWidth());
-    } else {
-      rtlil::WireOp bufferedResetWire =
-          genLocalWire(op->getLoc(), op.getReset(), rewriter);
-      {
-        auto syncedResetWire =
-            genLocalWire(op->getLoc(), op.getReset(), rewriter);
-        if (!syncedResetWire)
-          return failure();
-        Value connections[3] = {adaptor.getClk(), adaptor.getReset(),
-                                syncedResetWire};
-        rtlil::DFFOp::create(rewriter, op.getLoc(),
-                             genUniqueLocalName(rewriter), connections,
-                             syncedResetWire.getWidth());
-        Value connections2[3] = {syncedResetWire, adaptor.getReset(),
-                                 bufferedResetWire};
-        rtlil::AndOp::create(rewriter, op->getLoc(),
-                             genUniqueLocalName(rewriter), connections2, 1,
-                             false);
-      }
+      resultWire = genLocalWire(op->getLoc(), op.getData(), rewriter);
+      if (!resultWire)
+        return failure();
+      // For async reset use `$aldff`.
       std::vector<Value> connections({adaptor.getClk(), adaptor.getNext(),
-                                      bufferedResetWire,
+                                      adaptor.getReset(),
                                       adaptor.getResetValue(), resultWire});
       rtlil::ALDFFOp::create(rewriter, op->getLoc(), name,
                              std::move(connections), resultWire.getWidth());
+    } else {
+      resultWire = genSyncResetReg(
+          *this, op->getLoc(), rewriter, name, op.getData(), adaptor.getClk(),
+          adaptor.getNext(), adaptor.getReset(), adaptor.getResetValue());
+      if (!resultWire)
+        return failure();
     }
     rewriter.replaceOp(op, resultWire);
     return success();
