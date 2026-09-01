@@ -543,14 +543,18 @@ struct ConvertHWToRTLILPass
 static void populateHWToRTLILConversionPatterns(
     TypeConverter &converter, rtlil::ConversionPatternContext &rtlilContext,
     RewritePatternSet &patterns) {
-  patterns.add<
-      ModuleConversion, OutputConversion, BinOpConversion<AndOp, rtlil::AndOp>,
-      BinOpConversion<AddOp, rtlil::AddOp>,
-      BinOpConversion<SubOp, rtlil::SubOp>, BinOpConversion<OrOp, rtlil::OrOp>,
-      MuxOpConversion, InstanceConversion, CompRegOpResetConversion,
-      CompRegOpConversion, FirRegOpResetConversion, FirRegOpConversion,
-      ConstantConversion, ICMPConversion, ConcatConversion, ExtractConversion>(
-      converter, rtlilContext, patterns.getContext());
+  patterns
+      .add<ModuleConversion, OutputConversion,
+           BinOpConversion<comb::AndOp, rtlil::AndOp>,
+           BinOpConversion<comb::OrOp, rtlil::OrOp>,
+           BinOpConversion<comb::XorOp, rtlil::XorOp>,
+           BinOpConversion<comb::AddOp, rtlil::AddOp>,
+           BinOpConversion<comb::SubOp, rtlil::SubOp>,
+           BinOpConversion<comb::MulOp, rtlil::MulOp>, MuxOpConversion,
+           InstanceConversion, CompRegOpResetConversion, CompRegOpConversion,
+           FirRegOpResetConversion, FirRegOpConversion, ConstantConversion,
+           ICMPConversion, ConcatConversion, ExtractConversion>(
+          converter, rtlilContext, patterns.getContext());
 }
 
 /// Preparation of conversion by erroring on unsupported constructs and removing
