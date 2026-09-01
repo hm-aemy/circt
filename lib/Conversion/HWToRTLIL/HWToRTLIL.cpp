@@ -489,6 +489,44 @@ struct ICMPConversion : ConversionPatternBase<comb::ICmpOp> {
   }
 };
 
+// `comb.concat` orders its operands most significant first, `rtlil.concat`
+// least significant first.
+struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
+  using ConversionPatternBase<comb::ConcatOp>::ConversionPatternBase;
+
+  LogicalResult
+  matchAndRewrite(comb::ConcatOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultType =
+        getTypeConverter()->convertType<rtlil::MValueType>(op.getType());
+    if (!resultType)
+      return failure();
+
+    llvm::SmallVector<Value> inputs(llvm::reverse(adaptor.getInputs()));
+    rewriter.replaceOpWithNewOp<rtlil::ConcatOp>(op, resultType, inputs);
+    return success();
+  }
+};
+
+// Both `lowBit` and `offset` count from bit 0 of the input, and the width taken
+// is the width of the result.
+struct ExtractConversion : ConversionPatternBase<comb::ExtractOp> {
+  using ConversionPatternBase<comb::ExtractOp>::ConversionPatternBase;
+
+  LogicalResult
+  matchAndRewrite(comb::ExtractOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultType =
+        getTypeConverter()->convertType<rtlil::MValueType>(op.getType());
+    if (!resultType)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<rtlil::SliceOp>(
+        op, resultType, adaptor.getInput(), op.getLowBitAttr());
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -511,8 +549,8 @@ static void populateHWToRTLILConversionPatterns(
       BinOpConversion<SubOp, rtlil::SubOp>, BinOpConversion<OrOp, rtlil::OrOp>,
       MuxOpConversion, InstanceConversion, CompRegOpResetConversion,
       CompRegOpConversion, FirRegOpResetConversion, FirRegOpConversion,
-      ConstantConversion, ICMPConversion>(converter, rtlilContext,
-                                          patterns.getContext());
+      ConstantConversion, ICMPConversion, ConcatConversion, ExtractConversion>(
+      converter, rtlilContext, patterns.getContext());
 }
 
 /// Preparation of conversion by erroring on unsupported constructs and removing
