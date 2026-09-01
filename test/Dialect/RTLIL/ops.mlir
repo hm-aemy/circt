@@ -45,6 +45,9 @@ rtlil.module @"\\top" {
   "rtlil.le"(%1, %6, %8) <{name="$le",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
   "rtlil.lt"(%1, %6, %8) <{name="$lt",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
 
+  // A reduction takes A and Y only.
+  "rtlil.reduce_xor"(%1, %8) <{name="$reduce_xor",width= 32 : i32, aSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[1]>) -> ()
+
   %clk = "rtlil.wire"() <{name="\\clk", is_signed = false}> : () -> !rtlil<val[1]>
 
   "rtlil.dff"(%clk, %6, %1) <{name="$dff",width= 32 : i32}> : (!rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()

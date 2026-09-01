@@ -279,6 +279,26 @@ class ShiftOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>
 def ShlOp : ShiftOp<"shl">;
 def ShrOp : ShiftOp<"shr">;
 def SShrOp : ShiftOp<"sshr">;
+
+class ReduceOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<2>, FixedWidths<["$width", "1"]>]> {
+  let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
+  let arguments = (ins StrAttr:$name,
+                      Variadic<MValueType>:$connections,
+                      I32Attr:$width,
+                      I32Attr:$aSigned,
+                      DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
+                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\Y"} }]>:$ports);
+  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
+                            return ::circt::rtlil::createParamArrayAttr(getContext(), {
+                              {"\\A_SIGNED", 32, getASigned()},
+                              {"\\A_WIDTH", 32, getWidth()},
+                              {"\\Y_WIDTH", 32, 1},
+                            });
+                          }], "getParameters()">;
+}
+
+def ReduceXorOp : ReduceOp<"reduce_xor">;
+
 def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<4>, FixedWidths<["$width", "$width", "1", "$width"]>]> {
   let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
   let arguments = (ins StrAttr:$name,
