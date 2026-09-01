@@ -535,6 +535,56 @@ struct ExtractConversion : ConversionPatternBase<comb::ExtractOp> {
   }
 };
 
+// Use concat of SigSpec.
+struct ReplicateConversion : ConversionPatternBase<comb::ReplicateOp> {
+  using ConversionPatternBase<comb::ReplicateOp>::ConversionPatternBase;
+
+  LogicalResult
+  matchAndRewrite(comb::ReplicateOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultType =
+        getTypeConverter()->convertType<rtlil::MValueType>(op.getType());
+    if (!resultType)
+      return failure();
+
+    size_t multiple = op.getMultiple();
+    if (multiple == 1) {
+      rewriter.replaceOp(op, adaptor.getInput());
+      return success();
+    }
+    llvm::SmallVector<Value> inputs(multiple, adaptor.getInput());
+    rewriter.replaceOpWithNewOp<rtlil::ConcatOp>(op, resultType, inputs);
+    return success();
+  }
+};
+
+// SigSpec of one-bit chunks, read back to front.
+struct ReverseConversion : ConversionPatternBase<comb::ReverseOp> {
+  using ConversionPatternBase<comb::ReverseOp>::ConversionPatternBase;
+
+  LogicalResult
+  matchAndRewrite(comb::ReverseOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultType =
+        getTypeConverter()->convertType<rtlil::MValueType>(op.getType());
+    if (!resultType)
+      return failure();
+
+    unsigned width = resultType.getWidth();
+    auto bitType = rtlil::MValueType::get(getContext(), 1);
+    llvm::SmallVector<Value> bits;
+    bits.reserve(width);
+    // `rtlil.concat` takes its operands least significant first, and result bit
+    // 0 is input bit `width - 1`.
+    for (unsigned bit = 0; bit < width; bit++)
+      bits.push_back(rtlil::SliceOp::create(
+          rewriter, op->getLoc(), bitType, adaptor.getInput(),
+          rewriter.getI32IntegerAttr(width - 1 - bit)));
+    rewriter.replaceOpWithNewOp<rtlil::ConcatOp>(op, resultType, bits);
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -551,25 +601,25 @@ struct ConvertHWToRTLILPass
 static void populateHWToRTLILConversionPatterns(
     TypeConverter &converter, rtlil::ConversionPatternContext &rtlilContext,
     RewritePatternSet &patterns) {
-  patterns
-      .add<ModuleConversion, OutputConversion,
-           BinOpConversion<comb::AndOp, rtlil::AndOp>,
-           BinOpConversion<comb::OrOp, rtlil::OrOp>,
-           BinOpConversion<comb::XorOp, rtlil::XorOp>,
-           BinOpConversion<comb::AddOp, rtlil::AddOp>,
-           BinOpConversion<comb::SubOp, rtlil::SubOp>,
-           BinOpConversion<comb::MulOp, rtlil::MulOp>,
-           BinOpConversion<comb::DivUOp, rtlil::DivOp>,
-           BinOpConversion<comb::DivSOp, rtlil::DivOp, true>,
-           BinOpConversion<comb::ModUOp, rtlil::ModOp>,
-           BinOpConversion<comb::ModSOp, rtlil::ModOp, true>,
-           BinOpConversion<comb::ShlOp, rtlil::ShlOp>,
-           BinOpConversion<comb::ShrUOp, rtlil::ShrOp>,
-           BinOpConversion<comb::ShrSOp, rtlil::SShrOp, true>, MuxOpConversion,
-           InstanceConversion, CompRegOpResetConversion, CompRegOpConversion,
-           FirRegOpResetConversion, FirRegOpConversion, ConstantConversion,
-           ICMPConversion, ConcatConversion, ExtractConversion>(
-          converter, rtlilContext, patterns.getContext());
+  patterns.add<ModuleConversion, OutputConversion,
+               BinOpConversion<comb::AndOp, rtlil::AndOp>,
+               BinOpConversion<comb::OrOp, rtlil::OrOp>,
+               BinOpConversion<comb::XorOp, rtlil::XorOp>,
+               BinOpConversion<comb::AddOp, rtlil::AddOp>,
+               BinOpConversion<comb::SubOp, rtlil::SubOp>,
+               BinOpConversion<comb::MulOp, rtlil::MulOp>,
+               BinOpConversion<comb::DivUOp, rtlil::DivOp>,
+               BinOpConversion<comb::DivSOp, rtlil::DivOp, true>,
+               BinOpConversion<comb::ModUOp, rtlil::ModOp>,
+               BinOpConversion<comb::ModSOp, rtlil::ModOp, true>,
+               BinOpConversion<comb::ShlOp, rtlil::ShlOp>,
+               BinOpConversion<comb::ShrUOp, rtlil::ShrOp>,
+               BinOpConversion<comb::ShrSOp, rtlil::SShrOp, true>,
+               MuxOpConversion, InstanceConversion, CompRegOpResetConversion,
+               CompRegOpConversion, FirRegOpResetConversion, FirRegOpConversion,
+               ConstantConversion, ICMPConversion, ConcatConversion,
+               ExtractConversion, ReplicateConversion, ReverseConversion>(
+      converter, rtlilContext, patterns.getContext());
 }
 
 /// Preparation of conversion by erroring on unsupported constructs and removing
