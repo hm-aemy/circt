@@ -14,7 +14,12 @@ RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
   return rtlil::MValueType::get(t.getContext(), val);
 }
 std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
-  auto width = cast<mlir::IntegerAttr>(t.getWidth());
+  // A parameterized width has no RTLIL form: an `rtlil.wire` is a fixed number
+  // of bits.
+  auto width = dyn_cast<mlir::IntegerAttr>(t.getWidth());
+  if (!width) {
+    return std::nullopt;
+  }
   auto val = width.getInt();
   if (val >= INT32_MAX) {
     return std::nullopt;
