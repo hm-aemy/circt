@@ -515,7 +515,52 @@ static void populateHWToRTLILConversionPatterns(
                                           patterns.getContext());
 }
 
+/// Preparation of conversion by erroring on unsupported constructs and removing
+/// dead modules.
+static LogicalResult prepareForConversion(mlir::ModuleOp module) {
+  auto walk = module.walk([](hw::InstanceOp op) -> mlir::WalkResult {
+    // Not supported `hw.module.extern` and `hw.module.generated`.
+    auto *callee = rtlil::lookupSymbolWalkTables(op, op.getModuleNameAttr());
+    if (callee && !isa<hw::HWModuleOp>(callee)) {
+      op.emitOpError("instantiates ")
+              .append(op.getModuleName())
+              .append(", which has no body; the rtlil dialect cannot represent "
+                      "extern or generated modules yet")
+              .attachNote(callee->getLoc())
+          << "module declared here";
+      return mlir::WalkResult::interrupt();
+    }
+
+    // A cell with parameters sends `hierarchy` into `RTLIL::Module::derive()`,
+    // which only modules carrying a Verilog AST implement.
+    if (!op.getParameters().empty()) {
+      op.emitOpError("has parameters, which the rtlil dialect cannot represent "
+                     "on a module with a body; run 'hw-specialize' first");
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  if (walk.wasInterrupted())
+    return failure();
+
+  // Remove parametric modules that nothing references any more, which is what
+  // `hw-specialize` leaves behind and `symbol-dce` will not collect.
+  for (auto moduleOp :
+       llvm::make_early_inc_range(module.getOps<hw::HWModuleOp>())) {
+    if (moduleOp.getParameters().empty())
+      continue;
+    if (!mlir::SymbolTable::symbolKnownUseEmpty(moduleOp, module))
+      return moduleOp.emitOpError(
+          "is parametric and still used; run 'hw-specialize' first");
+    moduleOp.erase();
+  }
+  return success();
+}
+
 void ConvertHWToRTLILPass::runOnOperation() {
+  if (failed(prepareForConversion(getOperation())))
+    return signalPassFailure();
+
   ConversionTarget target(getContext());
   mlir::ConversionConfig config;
   target.addLegalDialect<rtlil::RTLILDialect>();

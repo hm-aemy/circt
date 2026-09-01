@@ -31,3 +31,23 @@ hw.module @top(in %x : i4, in %y : i4, in %z : i4, in %clk: !seq.clock) {
   %res = seq.firreg %z clock %clk preset 12 : i4
   // expected-error@-1 {{failed to legalize operation 'seq.firreg' that was explicitly marked illegal}}
 }
+// -----
+
+hw.module @sub<W: i32 = 7>(in %a : i8, out b : i8) {
+  hw.output %a : i8
+}
+hw.module @top(in %x : i8, out y : i8) {
+  // expected-error@+1 {{'hw.instance' op has parameters, which the rtlil dialect cannot represent on a module with a body; run 'hw-specialize' first}}
+  %0 = hw.instance "i0" @sub<W: i32 = 7>(a: %x: i8) -> (b: i8)
+  hw.output %0 : i8
+}
+
+// -----
+
+// expected-note@+1 {{module declared here}}
+hw.module.extern @BB(in %a : i8, out b : i8)
+hw.module @top(in %x : i8, out y : i8) {
+  // expected-error@+1 {{'hw.instance' op instantiates BB, which has no body; the rtlil dialect cannot represent extern or generated modules yet}}
+  %0 = hw.instance "i0" @BB(a: %x: i8) -> (b: i8)
+  hw.output %0 : i8
+}
