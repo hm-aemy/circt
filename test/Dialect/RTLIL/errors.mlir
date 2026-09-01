@@ -289,7 +289,7 @@ rtlil.module @"\\top" {
 rtlil.module @"\\top" {
   %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[32]>
   %b = "rtlil.wire"() <{name="\\b", is_signed = false}> : () -> !rtlil<val[8]>
-  // expected-error@+1 {{'rtlil.wconnection' op connects a 32-bit left-hand side to a 8-bit right-hand side}}
+  // expected-error@+1 {{'rtlil.wconnection' op left-hand side is 32 bits but the right-hand side is 8}}
   "rtlil.wconnection"(%a, %b) : (!rtlil<val[32]>, !rtlil<val[8]>) -> ()
 }
 
@@ -298,7 +298,7 @@ rtlil.module @"\\top" {
 // `fixup_ports()` zeroes the port_id of any wire with no direction flag, so
 // this port would silently vanish from `module->ports`.
 rtlil.module @"\\top" {
-  // expected-error@+1 {{'rtlil.wire' op has port_id 1 but is neither port_input nor port_output}}
+  // expected-error@+1 {{'rtlil.wire' op port_id 1 has neither an input nor an output designation}}
   %p = "rtlil.wire"() <{name="\\p", is_signed = false, port_id = 1 : i32}> : () -> !rtlil<val[1]>
 }
 
