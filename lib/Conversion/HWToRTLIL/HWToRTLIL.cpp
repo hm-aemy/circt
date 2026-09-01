@@ -198,6 +198,8 @@ template <typename BinOp, typename ResultOp, bool OpsSigned = false,
           typename = void>
 struct BinOpConversion;
 
+/// The variadic `comb` ops. RTLIL cell takes two inputs, spread back out over a
+/// left-leaning chain of
 template <typename BinOp, typename ResultOp, bool OpsSigned>
 struct BinOpConversion<BinOp, ResultOp, OpsSigned,
                        std::enable_if_t<std::is_member_function_pointer_v<
@@ -209,20 +211,28 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
 
   LogicalResult matchAndRewrite(BinOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &r) const override {
-    if (op.getNumOperands() != 2)
+    auto inputs = adaptor.getInputs();
+    if (inputs.size() < 2)
       return failure();
 
-    auto resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
-    std::vector<Value> connections(
-        {adaptor.getInputs()[0], adaptor.getInputs()[1], resultWire});
-    ResultOp::create(
-        r, op->getLoc(), Super::genUniqueLocalName(r), std::move(connections),
-        op.getInputs()[0].getType().getIntOrFloatBitWidth(), OpsSigned);
+    auto width = op.getInputs()[0].getType().getIntOrFloatBitWidth();
+    Value lhs = inputs.front();
+    rtlil::WireOp resultWire;
+    for (Value rhs : inputs.drop_front()) {
+      resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
+      if (!resultWire)
+        return failure();
+      Value connections[3] = {lhs, rhs, resultWire};
+      ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r),
+                       connections, width, OpsSigned);
+      lhs = resultWire;
+    }
     r.replaceOp(op, resultWire);
     return success();
   }
 };
 
+/// The two-operand `comb` ops.
 template <typename BinOp, typename ResultOp, bool OpsSigned>
 struct BinOpConversion<BinOp, ResultOp, OpsSigned,
                        std::enable_if_t<std::is_member_function_pointer_v<
@@ -234,14 +244,11 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
 
   LogicalResult matchAndRewrite(BinOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &r) const override {
-    if (op.getNumOperands() != 2)
-      return failure();
-
     auto resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
-    std::vector<Value> connections(
-        {adaptor.getLhs(), adaptor.getRhs(), resultWire});
-    ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r),
-                     std::move(connections),
+    if (!resultWire)
+      return failure();
+    Value connections[3] = {adaptor.getLhs(), adaptor.getRhs(), resultWire};
+    ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r), connections,
                      op.getLhs().getType().getIntOrFloatBitWidth(), OpsSigned);
     r.replaceOp(op, resultWire);
     return success();
