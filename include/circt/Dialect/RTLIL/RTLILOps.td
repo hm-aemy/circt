@@ -257,6 +257,28 @@ def MulOp : BinOp<"mul">;
 def DivOp : BinOp<"div">;
 def ModOp : BinOp<"mod">;
 
+class ShiftOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "$width"]>]> {
+  let summary = "The RTLIL `" # t # "` cell, shifting A by an unsigned B into Y";
+  let arguments = (ins StrAttr:$name,
+                      Variadic<MValueType>:$connections,
+                      I32Attr:$width,
+                      I32Attr:$aSigned,
+                      DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
+                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\Y"} }]>:$ports);
+  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
+                            return ::circt::rtlil::createParamArrayAttr(getContext(), {
+                              {"\\A_SIGNED", 32, getASigned()},
+                              {"\\B_SIGNED", 32, 0},
+                              {"\\A_WIDTH", 32, getWidth()},
+                              {"\\B_WIDTH", 32, getWidth()},
+                              {"\\Y_WIDTH", 32, getWidth()},
+                            });
+                          }], "getParameters()">;
+}
+
+def ShlOp : ShiftOp<"shl">;
+def ShrOp : ShiftOp<"shr">;
+def SShrOp : ShiftOp<"sshr">;
 def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<4>, FixedWidths<["$width", "$width", "1", "$width"]>]> {
   let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
   let arguments = (ins StrAttr:$name,

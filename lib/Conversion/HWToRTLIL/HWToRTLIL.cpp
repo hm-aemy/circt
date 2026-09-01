@@ -562,7 +562,10 @@ static void populateHWToRTLILConversionPatterns(
            BinOpConversion<comb::DivUOp, rtlil::DivOp>,
            BinOpConversion<comb::DivSOp, rtlil::DivOp, true>,
            BinOpConversion<comb::ModUOp, rtlil::ModOp>,
-           BinOpConversion<comb::ModSOp, rtlil::ModOp, true>, MuxOpConversion,
+           BinOpConversion<comb::ModSOp, rtlil::ModOp, true>,
+           BinOpConversion<comb::ShlOp, rtlil::ShlOp>,
+           BinOpConversion<comb::ShrUOp, rtlil::ShrOp>,
+           BinOpConversion<comb::ShrSOp, rtlil::SShrOp, true>, MuxOpConversion,
            InstanceConversion, CompRegOpResetConversion, CompRegOpConversion,
            FirRegOpResetConversion, FirRegOpConversion, ConstantConversion,
            ICMPConversion, ConcatConversion, ExtractConversion>(
