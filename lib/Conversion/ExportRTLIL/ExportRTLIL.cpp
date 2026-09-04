@@ -122,12 +122,12 @@ static Yosys::RTLIL::Const toConst(Attribute value,
 static std::string getSrcAttribute(Location loc) {
   llvm::SmallVector<std::string> pieces;
   std::function<void(Location)> collect = [&](Location current) {
-    if (auto fileLoc = dyn_cast<FileLineColLoc>(current)) {
+    if (auto fileLoc = dyn_cast<FileLineColRange>(current)) {
       pieces.push_back((fileLoc.getFilename().getValue() + ":" +
-                        Twine(fileLoc.getLine()) + "." +
-                        Twine(fileLoc.getColumn()) + "-" +
-                        Twine(fileLoc.getLine()) + "." +
-                        Twine(fileLoc.getColumn()))
+                        Twine(fileLoc.getStartLine()) + "." +
+                        Twine(fileLoc.getStartColumn()) + "-" +
+                        Twine(fileLoc.getEndLine()) + "." +
+                        Twine(fileLoc.getEndColumn()))
                            .str());
       return;
     }
@@ -136,11 +136,26 @@ static std::string getSrcAttribute(Location loc) {
         collect(nested);
       return;
     }
-    if (auto named = dyn_cast<NameLoc>(current))
+    if (auto named = dyn_cast<NameLoc>(current)) {
       collect(named.getChildLoc());
+      return;
+    }
+    if (auto callsite = dyn_cast<CallSiteLoc>(current))
+      collect(callsite.getCallee());
   };
   collect(loc);
   return llvm::join(pieces, "|");
+}
+
+static constexpr StringRef circtLocAttrName = "\\circt.loc";
+
+static std::string getCirctLocAttribute(Location loc) {
+  if (isa<UnknownLoc>(loc))
+    return {};
+  std::string result;
+  llvm::raw_string_ostream os(result);
+  loc.print(os);
+  return result;
 }
 
 namespace {
@@ -252,6 +267,9 @@ void ModuleEmitter::setAttributes(Yosys::RTLIL::AttrObject *object,
   std::string src = getSrcAttribute(loc);
   if (!src.empty())
     object->set_src_attribute(src);
+  std::string exact = getCirctLocAttribute(loc);
+  if (!exact.empty())
+    object->set_string_attribute(id(circtLocAttrName), exact);
 }
 
 LogicalResult ModuleEmitter::emit(rtlil::ModuleOp op) {

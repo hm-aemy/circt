@@ -34,5 +34,6 @@
 // RUN:   | FileCheck %s --check-prefix=LOC
 // The `src` is gone from the attribute dict...
 // LOC: "rtlil.wire"() <{{{.*}}name = "\\a"{{.*}}rtlil_attributes = []{{.*}}
-// ...and has become a real source location.
-// LOC-DAG: loc("demo.v":3:1)
+// ...and has become a real source location, keeping the end of the `src`
+// range rather than narrowing it to its start.
+// LOC-DAG: loc("demo.v":3:1 to :9)

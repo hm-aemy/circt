@@ -23,8 +23,10 @@
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
 #include "circt/Yosys/Yosys.h"
 
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
 #include "mlir/Tools/mlir-translate/Translation.h"
 #include "llvm/ADT/DenseMap.h"
@@ -55,6 +57,12 @@ static StringRef toStringRef(const Yosys::RTLIL::IdString &name) {
   return StringRef(cstr);
 }
 
+static Yosys::RTLIL::IdString id(StringRef name) {
+  return Yosys::RTLIL::IdString(std::string_view(name.data(), name.size()));
+}
+
+static constexpr StringRef circtLocAttrName = "\\circt.loc";
+
 namespace {
 class Importer {
 public:
@@ -70,8 +78,7 @@ private:
 
   /// A value carrying the bits of `spec`, built from the wires already
   /// imported plus `rtlil.const`, `rtlil.slice` and `rtlil.concat` as needed.
-  Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
-                      Operation *diagnosticOp);
+  Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc);
 
   /// The bit vector for one `RTLIL::Const`, as `rtlil.const` takes it.
   FailureOr<rtlil::ConstAttr> importBits(const Yosys::RTLIL::Const &value,
@@ -110,30 +117,54 @@ private:
 // Locations and attributes
 //===----------------------------------------------------------------------===//
 
-/// Parse one `file:line.col-line.col` piece of an RTLIL `src` attribute.
-static std::optional<std::pair<StringRef, std::pair<unsigned, unsigned>>>
-parseSrcPiece(StringRef piece) {
+namespace {
+/// One `file:line.col-line.col` piece of an RTLIL `src` attribute.
+struct SrcPiece {
+  StringRef file;
+  unsigned startLine, startColumn, endLine, endColumn;
+};
+} // namespace
+
+static std::optional<std::pair<unsigned, unsigned>>
+parseLineCol(StringRef text) {
+  auto [lineStr, colStr] = text.split('.');
+  unsigned line = 0, col = 0;
+  if (lineStr.getAsInteger(10, line))
+    return std::nullopt;
+  if (!colStr.empty() && colStr.getAsInteger(10, col))
+    col = 0;
+  return std::make_pair(line, col);
+}
+
+static std::optional<SrcPiece> parseSrcPiece(StringRef piece) {
   // Split at the *last* colon so that a Windows drive letter or a path
   // containing a colon does not confuse the range.
   size_t colon = piece.rfind(':');
   if (colon == StringRef::npos)
     return std::nullopt;
   StringRef file = piece.substr(0, colon);
-  StringRef range = piece.substr(colon + 1);
+  auto [beginStr, endStr] = piece.substr(colon + 1).split('-');
 
-  StringRef begin = range.split('-').first;
-  StringRef lineStr = begin.split('.').first;
-  StringRef colStr = begin.split('.').second;
-  unsigned line = 0, col = 0;
-  if (lineStr.getAsInteger(10, line))
+  auto begin = parseLineCol(beginStr);
+  if (!begin)
     return std::nullopt;
-  // A piece may be just `file:line`.
-  if (!colStr.empty() && colStr.getAsInteger(10, col))
-    col = 0;
-  return std::make_pair(file, std::make_pair(line, col));
+  auto end = endStr.empty() ? begin : parseLineCol(endStr);
+  if (!end)
+    end = begin;
+  return SrcPiece{file, begin->first, begin->second, end->first, end->second};
 }
 
 Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
+  auto exact = object.attributes.find(id(circtLocAttrName));
+  if (exact != object.attributes.end()) {
+    std::string text = exact->second.decode_string();
+    mlir::ScopedDiagnosticHandler quiet(context,
+                                        [](Diagnostic &) { return success(); });
+    if (auto attr = dyn_cast_or_null<LocationAttr>(
+            mlir::parseAttribute(text, context, /*type=*/nullptr)))
+      return Location(attr);
+  }
+
   auto it = object.attributes.find(Yosys::ID::src);
   if (it == object.attributes.end())
     return builder.getUnknownLoc();
@@ -142,11 +173,20 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
   SmallVector<Location> locations;
   SmallVector<StringRef> pieces;
   StringRef(src).split(pieces, '|', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  for (StringRef piece : pieces)
-    if (auto parsed = parseSrcPiece(piece))
+  for (StringRef piece : pieces) {
+    auto parsed = parseSrcPiece(piece);
+    if (!parsed)
+      continue;
+    auto file = builder.getStringAttr(parsed->file);
+    if (parsed->startLine == parsed->endLine &&
+        parsed->startColumn == parsed->endColumn)
       locations.push_back(
-          FileLineColLoc::get(builder.getStringAttr(parsed->first),
-                              parsed->second.first, parsed->second.second));
+          FileLineColLoc::get(file, parsed->startLine, parsed->startColumn));
+    else
+      locations.push_back(
+          FileLineColRange::get(file, parsed->startLine, parsed->startColumn,
+                                parsed->endLine, parsed->endColumn));
+  }
 
   if (locations.empty())
     return builder.getUnknownLoc();
@@ -243,9 +283,7 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
   // across Yosys versions.
   SmallVector<std::pair<StringRef, const Yosys::RTLIL::Const *>> sorted;
   for (const auto &[name, value] : object.attributes) {
-    // `src` becomes the op's Location. Keeping it here as well would duplicate
-    // it on every Path B round trip, since export re-derives it from the loc.
-    if (name == Yosys::ID::src)
+    if (name == Yosys::ID::src || name == id(circtLocAttrName))
       continue;
     sorted.emplace_back(toStringRef(name), &value);
   }
@@ -267,8 +305,7 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
 // SigSpec
 //===----------------------------------------------------------------------===//
 
-Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
-                              Operation *diagnosticOp) {
+Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc) {
   SmallVector<Value> pieces;
   // `chunks()` is ordered least significant first, which is also the operand
   // order `rtlil.concat` uses.
@@ -327,7 +364,7 @@ LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
   SmallVector<Attribute> portNames;
   SmallVector<Value> connections;
   for (auto [port, signal] : sortedPorts) {
-    Value value = importSigSpec(*signal, loc, nullptr);
+    Value value = importSigSpec(*signal, loc);
     if (!value)
       return failure();
     portNames.push_back(builder.getStringAttr(port));
@@ -427,8 +464,8 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
       return failure();
 
   for (const auto &[lhs, rhs] : source->connections()) {
-    Value lhsValue = importSigSpec(lhs, loc, nullptr);
-    Value rhsValue = importSigSpec(rhs, loc, nullptr);
+    Value lhsValue = importSigSpec(lhs, loc);
+    Value rhsValue = importSigSpec(rhs, loc);
     if (!lhsValue || !rhsValue)
       return failure();
     rtlil::WConnectionOp::create(builder, loc, lhsValue, rhsValue);
