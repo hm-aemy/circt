@@ -409,10 +409,14 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
   }
   // Only `rtlil.cell` and `rtlil.instance` carry an attribute dict; the
   // fixed-shape cell ops (`rtlil.and`, `rtlil.dff`, ...) have none, and still
-  // want `src` set from their location.
-  auto attributes = op->getAttrOfType<ArrayAttr>("rtlil_attributes");
-  setAttributes(cell, attributes ? attributes : ArrayAttr::get(op->getContext(), {}),
-                op->getLoc());
+  // want `src` set from their location. Naming the two through their generated
+  // accessors keeps this from going stale if the attribute is ever renamed.
+  ArrayAttr attributes = ArrayAttr::get(op->getContext(), {});
+  if (auto generic = dyn_cast<rtlil::CellOp>(op.getOperation()))
+    attributes = generic.getRtlilAttributes();
+  else if (auto instance = dyn_cast<rtlil::InstanceOp>(op.getOperation()))
+    attributes = instance.getRtlilAttributes();
+  setAttributes(cell, attributes, op->getLoc());
   return success();
 }
 
