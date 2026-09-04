@@ -443,9 +443,10 @@ struct ICMPConversion : ConversionPatternBase<comb::ICmpOp> {
   matchAndRewrite(comb::ICmpOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto pred = adaptor.getPredicate();
-    if (static_cast<int>(pred) > 10 || !adaptor.getTwoState()) {
-      return failure(); // currently not supported
-    }
+    // RTLIL has no wildcard-compare cell for `==?`/`!=?`.
+    if (pred == ICmpPredicate::weq || pred == ICmpPredicate::wne)
+      return failure();
+
     auto resultWire = genLocalWire(op->getLoc(), op.getResult(), rewriter);
     if (!resultWire)
       return failure();
@@ -462,6 +463,16 @@ struct ICMPConversion : ConversionPatternBase<comb::ICmpOp> {
     case ICmpPredicate::ne:
       rtlil::NEOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
+      break;
+    // `$eqx`/`$nex` compare x and z as values instead of propagating them,
+    // matching `===`/`!==`. Under `bin` this coincides with `$eq`/`$ne`.
+    case ICmpPredicate::ceq:
+      rtlil::EQXOp::create(rewriter, op->getLoc(), name, connections, width,
+                           isSigned);
+      break;
+    case ICmpPredicate::cne:
+      rtlil::NEXOp::create(rewriter, op->getLoc(), name, connections, width,
+                           isSigned);
       break;
     case ICmpPredicate::ugt:
     case ICmpPredicate::sgt:
@@ -483,8 +494,9 @@ struct ICMPConversion : ConversionPatternBase<comb::ICmpOp> {
       rtlil::GEOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
-    default:
-      return failure();
+    case ICmpPredicate::weq:
+    case ICmpPredicate::wne:
+      llvm_unreachable("wildcard predicates rejected above");
     }
     rewriter.replaceOp(op, resultWire);
     return success();

@@ -339,6 +339,11 @@ def GEOp : CmpOp<"ge">;
 def LEOp : CmpOp<"le">;
 def LTOp : CmpOp<"lt">;
 
+// `$eqx` and `$nex` are SystemVerilog's `===` and `!==`: they compare x and z
+// as values, so unlike `$eq`/`$ne` they always return a defined 0 or 1.
+def EQXOp : CmpOp<"eqx">;
+def NEXOp : CmpOp<"nex">;
+
 def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["1", "$width", "$width"]>]> {
   let summary = "The RTLIL `dff` cell: Q takes D on the rising CLK edge";
   let arguments = (ins StrAttr:$name,

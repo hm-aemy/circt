@@ -1,7 +1,16 @@
 // RUN: circt-opt --convert-hw-to-rtlil %s --verify-diagnostics --split-input-file
 
+// RTLIL has no wildcard-compare cell. The case predicates `ceq`/`cne` do have
+// one, `$eqx`/`$nex`.
 hw.module @top(in %x : i32, in %y : i32, in %z : i32, in %select: i1) {
   %res = comb.icmp bin wne %y, %z : i32
+  // expected-error@-1 {{failed to legalize operation 'comb.icmp' that was explicitly marked illegal}}
+}
+
+// -----
+
+hw.module @top(in %y : i32, in %z : i32) {
+  %res = comb.icmp weq %y, %z : i32
   // expected-error@-1 {{failed to legalize operation 'comb.icmp' that was explicitly marked illegal}}
 }
 

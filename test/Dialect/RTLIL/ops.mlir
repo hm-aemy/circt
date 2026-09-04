@@ -41,6 +41,8 @@ rtlil.module @"\\top" {
   "rtlil.gt"(%1, %6, %8) <{name="$gt",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
   "rtlil.eq"(%1, %6, %8) <{name="$eq",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
   "rtlil.ne"(%1, %6, %8) <{name="$ne",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
+  "rtlil.eqx"(%1, %6, %8) <{name="$eqx",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
+  "rtlil.nex"(%1, %6, %8) <{name="$nex",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
   "rtlil.ge"(%1, %6, %8) <{name="$ge",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
   "rtlil.le"(%1, %6, %8) <{name="$le",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
   "rtlil.lt"(%1, %6, %8) <{name="$lt",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
