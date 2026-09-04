@@ -1,7 +1,7 @@
 // The pair is an identity on the supported subset: import a design Yosys wrote,
 // export it, and read it back through Yosys' own frontend again.
-// RUN: circt-translate --import-rtlil %S/../ImportRTLIL/basic.il 2>/dev/null \
-// RUN:   | circt-translate --export-rtlil 2>/dev/null \
+// RUN: circt-translate --import-rtlil %S/../ImportRTLIL/basic.il \
+// RUN:   | circt-translate --export-rtlil \
 // RUN:   | FileCheck %s
 // REQUIRES: libyosys
 

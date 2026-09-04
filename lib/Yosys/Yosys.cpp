@@ -14,6 +14,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <iostream>
+#include <sstream>
 
 // The Yosys headers come last and stay in this translation unit: they need
 // exceptions, RTTI, and C++20 (see `YosysCompilerOptions.cmake`), and their
@@ -155,4 +156,27 @@ std::string circt::yosys::getDataDir() { return getState().dataDir; }
 
 std::string circt::yosys::getAbcExecutable() {
   return getState().abcExecutable;
+}
+
+struct circt::yosys::LogCapture::Impl {
+  std::ostringstream buffer;
+  std::vector<std::ostream *> saved;
+};
+
+circt::yosys::LogCapture::LogCapture(bool active) {
+  if (!active)
+    return;
+  impl = std::make_unique<Impl>();
+  impl->saved = Yosys::log_streams;
+  Yosys::log_streams.clear();
+  Yosys::log_streams.push_back(&impl->buffer);
+}
+
+circt::yosys::LogCapture::~LogCapture() {
+  if (impl)
+    Yosys::log_streams = impl->saved;
+}
+
+std::string circt::yosys::LogCapture::str() const {
+  return impl ? impl->buffer.str() : std::string();
 }

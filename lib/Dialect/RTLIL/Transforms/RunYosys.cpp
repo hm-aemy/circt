@@ -143,13 +143,15 @@ void RunYosysPass::runOnOperation() {
     commands.push_back(command);
 
   // The catch lives in `YosysScript.cpp`, which is the only file here compiled
-  // with exceptions; see `YosysScript.h`.
-  std::string failedCommand, error, log;
-  if (!circt::rtlil::detail::runYosysScript(commands, &design, quiet,
-                                            failedCommand, error, log)) {
+  // with exceptions; see `YosysScript.h`. Silencing the log is this side's job,
+  // so that a failure can still quote what Yosys had to say.
+  circt::yosys::LogCapture capture(quiet);
+  std::string failedCommand, error;
+  if (!circt::rtlil::detail::runYosysScript(commands, &design, failedCommand,
+                                            error)) {
     auto diag = module.emitError("yosys command '")
                 << failedCommand << "' failed: " << error;
-    if (!log.empty())
+    if (std::string log = capture.str(); !log.empty())
       diag.attachNote() << "yosys log:\n" << log;
     return signalPassFailure();
   }

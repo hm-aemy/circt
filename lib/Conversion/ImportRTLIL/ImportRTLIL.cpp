@@ -535,6 +535,12 @@ void circt::rtlil::registerImportRTLILTranslation() {
           return {};
         }
 
+        // The RTLIL frontend announces itself and the file it read on Yosys'
+        // log, which is stderr by default. A translation tool writes its result
+        // and nothing else, so keep that to ourselves; a fatal Yosys error
+        // still reaches stderr through `log_error_stderr`.
+        circt::yosys::LogCapture capture;
+
         // Yosys' own RTLIL frontend does the parsing -- writing a second `.il`
         // parser on the MLIR side is exactly what linking the library avoids.
         // Passing a non-null stream makes `frontend_call` ignore the filename,

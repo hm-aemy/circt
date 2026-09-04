@@ -473,6 +473,12 @@ void circt::rtlil::registerExportRTLILTranslation() {
           return module.emitError("failed to initialize Yosys: ")
                  << llvm::toString(std::move(error));
 
+        // The RTLIL backend announces itself on Yosys' log, which is stderr by
+        // default. A translation tool writes its result and nothing else, so
+        // keep that to ourselves; a fatal Yosys error still reaches stderr
+        // through `log_error_stderr`.
+        circt::yosys::LogCapture capture;
+
         Yosys::RTLIL::Design design;
         if (failed(exportRTLIL(module, &design)))
           return failure();

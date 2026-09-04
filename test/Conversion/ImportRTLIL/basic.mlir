@@ -1,4 +1,9 @@
-// RUN: circt-translate --import-rtlil %S/basic.il 2>/dev/null | FileCheck %s
+// RUN: circt-translate --import-rtlil %S/basic.il | FileCheck %s
+// Yosys' RTLIL frontend logs a header and the input filename. A translation
+// tool writes its result and nothing else, so stderr must stay empty.
+// RUN: circt-translate --import-rtlil %S/basic.il 2>&1 >/dev/null \
+// RUN:   | FileCheck %s --check-prefix=QUIET --allow-empty
+// QUIET-NOT: {{.}}
 // REQUIRES: libyosys
 
 // Yosys' own RTLIL frontend does the parsing; no `.il` parser is written on the
@@ -30,7 +35,7 @@
 // An RTLIL `src` attribute becomes the op's Location rather than another entry
 // in the attribute dict -- keeping both would duplicate it on every round trip,
 // since export re-derives `src` from the location.
-// RUN: circt-translate --import-rtlil %S/basic.il --mlir-print-debuginfo 2>/dev/null \
+// RUN: circt-translate --import-rtlil %S/basic.il --mlir-print-debuginfo \
 // RUN:   | FileCheck %s --check-prefix=LOC
 // The `src` is gone from the attribute dict...
 // LOC: "rtlil.wire"() <{{{.*}}name = "\\a"{{.*}}rtlil_attributes = []{{.*}}

@@ -23,6 +23,7 @@
 
 #include "llvm/Support/Error.h"
 
+#include <memory>
 #include <string>
 
 namespace circt {
@@ -52,6 +53,35 @@ std::string getDataDir();
 /// The `yosys-abc` binary Yosys is using, valid after `initialize()`. Empty
 /// when Yosys was built with an integrated or disabled ABC.
 std::string getAbcExecutable();
+
+/// Redirects Yosys' log output for the duration of the scope and keeps what it
+/// wrote, so an ordinary run stays quiet and a failure can still be explained.
+///
+/// Yosys logs unconditionally: its per-pass headers and the backend's own
+/// chatter would otherwise land on stderr, which makes `--verify-diagnostics`
+/// tests unreadable and puts noise next to a translation tool's output. Fatal
+/// errors are unaffected, since `log_error_stderr` sends those to stderr
+/// directly.
+///
+/// Construct one only after `initialize()`: the streams in place at
+/// construction are the ones restored at destruction.
+class LogCapture {
+public:
+  /// `active == false` makes this a no-op, for a caller that wants the log to
+  /// go where it normally goes.
+  explicit LogCapture(bool active = true);
+  ~LogCapture();
+  LogCapture(const LogCapture &) = delete;
+  LogCapture &operator=(const LogCapture &) = delete;
+
+  /// What Yosys has logged since construction. Empty when inactive.
+  std::string str() const;
+
+private:
+  struct Impl;
+  /// Null when inactive.
+  std::unique_ptr<Impl> impl;
+};
 
 } // namespace yosys
 } // namespace circt

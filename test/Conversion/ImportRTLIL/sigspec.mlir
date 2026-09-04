@@ -1,4 +1,4 @@
-// RUN: circt-translate --import-rtlil %S/sigspec.il 2>/dev/null | FileCheck %s
+// RUN: circt-translate --import-rtlil %S/sigspec.il | FileCheck %s
 // REQUIRES: libyosys
 
 // CHECK-LABEL: rtlil.module @"\\spec"

@@ -3,14 +3,14 @@
 // stack and a FusedLoc's metadata would all be lost. Export writes a second
 // `\circt.loc` attribute holding the location in MLIR's own syntax, and import
 // prefers it over `src`.
-// RUN: circt-translate --export-rtlil %s 2>/dev/null \
-// RUN:   | circt-translate --import-rtlil --mlir-print-debuginfo 2>/dev/null \
+// RUN: circt-translate --export-rtlil %s \
+// RUN:   | circt-translate --import-rtlil --mlir-print-debuginfo \
 // RUN:   | FileCheck %s
 // REQUIRES: libyosys
 
 // Both attributes are written, and `src` stays the flattened form Yosys itself
 // understands and propagates through a script.
-// RUN: circt-translate --export-rtlil %s 2>/dev/null | FileCheck %s --check-prefix=IL
+// RUN: circt-translate --export-rtlil %s | FileCheck %s --check-prefix=IL
 
 // IL-DAG: attribute \src "in.sv:3.5-3.12"
 // IL-DAG: attribute \circt.loc "loc(\"in.sv\":3:5 to :12)"

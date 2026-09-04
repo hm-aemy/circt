@@ -45,12 +45,11 @@ namespace detail {
 /// that gets a message out is the `log_error_atexit` hook that
 /// `circt::yosys::initialize()` installs.
 ///
-/// `captureLog` redirects Yosys' log output for the duration and returns it in
-/// `log`, so an ordinary run stays quiet and a failure can still be explained.
+/// Silencing Yosys' log is the caller's job, with `circt::yosys::LogCapture`
+/// around the call: that class names LLVM types, which this header cannot.
 bool runYosysScript(const std::vector<std::string> &commands,
-                    Yosys::RTLIL::Design *design, bool captureLog,
-                    std::string &failedCommand, std::string &error,
-                    std::string &log);
+                    Yosys::RTLIL::Design *design, std::string &failedCommand,
+                    std::string &error);
 
 } // namespace detail
 } // namespace rtlil
