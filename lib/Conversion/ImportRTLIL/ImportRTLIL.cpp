@@ -78,7 +78,8 @@ private:
 
   /// A value carrying the bits of `spec`, built from the wires already
   /// imported plus `rtlil.const`, `rtlil.slice` and `rtlil.concat` as needed.
-  Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc);
+  Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
+                      const Twine &context);
 
   /// The bit vector for one `RTLIL::Const`, as `rtlil.const` takes it.
   FailureOr<rtlil::ConstAttr> importBits(const Yosys::RTLIL::Const &value,
@@ -305,7 +306,8 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
 // SigSpec
 //===----------------------------------------------------------------------===//
 
-Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc) {
+Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
+                              const Twine &context) {
   SmallVector<Value> pieces;
   // `chunks()` is ordered least significant first, which is also the operand
   // order `rtlil.concat` uses.
@@ -322,7 +324,7 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc) {
 
     auto it = wireValues.find(chunk.wire);
     if (it == wireValues.end()) {
-      mlir::emitError(loc) << "signal refers to wire "
+      mlir::emitError(loc) << context << " refers to wire "
                            << toStringRef(chunk.wire->name)
                            << ", which is not in this module";
       return {};
@@ -340,7 +342,9 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc) {
   }
 
   if (pieces.empty()) {
-    mlir::emitError(loc) << "zero-width signal is not representable";
+    mlir::emitError(loc) << context
+                         << " is a zero-width signal, which the rtlil dialect "
+                            "cannot represent";
     return {};
   }
   if (pieces.size() == 1)
@@ -364,7 +368,8 @@ LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
   SmallVector<Attribute> portNames;
   SmallVector<Value> connections;
   for (auto [port, signal] : sortedPorts) {
-    Value value = importSigSpec(*signal, loc);
+    Value value = importSigSpec(
+        *signal, loc, "port " + port + " of cell " + toStringRef(cell->name));
     if (!value)
       return failure();
     portNames.push_back(builder.getStringAttr(port));
@@ -463,9 +468,12 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
     if (failed(importCell(cell, importLocation(*cell))))
       return failure();
 
+  unsigned index = 0;
   for (const auto &[lhs, rhs] : source->connections()) {
-    Value lhsValue = importSigSpec(lhs, loc);
-    Value rhsValue = importSigSpec(rhs, loc);
+    std::string which =
+        ("connection " + Twine(index++) + " of module " + name).str();
+    Value lhsValue = importSigSpec(lhs, loc, "the left-hand side of " + which);
+    Value rhsValue = importSigSpec(rhs, loc, "the right-hand side of " + which);
     if (!lhsValue || !rhsValue)
       return failure();
     rtlil::WConnectionOp::create(builder, loc, lhsValue, rhsValue);
