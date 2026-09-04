@@ -64,17 +64,43 @@ using namespace mlir;
 /// Split a script into individual commands. Yosys' own `run_pass` takes one
 /// command at a time, and splitting here means a failing command can be named
 /// in the diagnostic.
+///
+/// A `;` inside a `+`-prefixed argument is not a separator: that is how `abc`
+/// spells a sub-script, as in `abc -script +strash;dc2`, and Yosys hands the
+/// whole token to `abc` untouched. Newlines separate commands unconditionally.
 static SmallVector<std::string> splitScript(StringRef script) {
   SmallVector<std::string> commands;
-  SmallVector<StringRef> pieces;
-  script.split(pieces, ';', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-  for (StringRef piece : pieces) {
-    SmallVector<StringRef> lines;
-    piece.split(lines, '\n', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-    for (StringRef line : lines)
-      if (StringRef trimmed = line.trim(); !trimmed.empty())
-        commands.push_back(trimmed.str());
+
+  auto push = [&](StringRef piece) {
+    if (StringRef trimmed = piece.trim(); !trimmed.empty())
+      commands.push_back(trimmed.str());
+  };
+
+  size_t start = 0;
+  // Whether the token being scanned started with `+`, in which case a `;`
+  // belongs to it rather than ending the command.
+  bool inPlusToken = false;
+  bool atTokenStart = true;
+  for (size_t i = 0, e = script.size(); i != e; ++i) {
+    char c = script[i];
+    if (c == '\n' || (c == ';' && !inPlusToken)) {
+      push(script.slice(start, i));
+      start = i + 1;
+      inPlusToken = false;
+      atTokenStart = true;
+      continue;
+    }
+    if (c == ' ' || c == '\t') {
+      inPlusToken = false;
+      atTokenStart = true;
+      continue;
+    }
+    if (atTokenStart) {
+      inPlusToken = c == '+';
+      atTokenStart = false;
+    }
   }
+  push(script.substr(start));
   return commands;
 }
 
