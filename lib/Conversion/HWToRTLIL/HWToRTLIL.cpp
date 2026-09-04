@@ -447,50 +447,44 @@ struct ICMPConversion : ConversionPatternBase<comb::ICmpOp> {
       return failure(); // currently not supported
     }
     auto resultWire = genLocalWire(op->getLoc(), op.getResult(), rewriter);
+    if (!resultWire)
+      return failure();
     mlir::Value connections[3] = {adaptor.getLhs(), adaptor.getRhs(),
                                   resultWire};
+    auto name = genUniqueLocalName(rewriter);
+    auto width = op.getLhs().getType().getIntOrFloatBitWidth();
+    bool isSigned = comb::ICmpOp::isPredicateSigned(pred);
     switch (pred) {
     case ICmpPredicate::eq:
-      rtlil::EQOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
-                          connections,
-                          op.getLhs().getType().getIntOrFloatBitWidth(), false);
+      rtlil::EQOp::create(rewriter, op->getLoc(), name, connections, width,
+                          isSigned);
       break;
     case ICmpPredicate::ne:
-      rtlil::NEOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
-                          connections,
-                          op.getLhs().getType().getIntOrFloatBitWidth(), false);
+      rtlil::NEOp::create(rewriter, op->getLoc(), name, connections, width,
+                          isSigned);
       break;
     case ICmpPredicate::ugt:
     case ICmpPredicate::sgt:
-      rtlil::GTOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
-                          connections,
-                          op.getLhs().getType().getIntOrFloatBitWidth(),
-                          pred == ICmpPredicate::sgt);
+      rtlil::GTOp::create(rewriter, op->getLoc(), name, connections, width,
+                          isSigned);
       break;
     case ICmpPredicate::ult:
     case ICmpPredicate::slt:
-      rtlil::LTOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
-                          connections,
-                          op.getLhs().getType().getIntOrFloatBitWidth(),
-                          pred == ICmpPredicate::slt);
+      rtlil::LTOp::create(rewriter, op->getLoc(), name, connections, width,
+                          isSigned);
       break;
     case ICmpPredicate::ule:
     case ICmpPredicate::sle:
-      rtlil::LEOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
-                          connections,
-                          op.getLhs().getType().getIntOrFloatBitWidth(),
-                          pred == ICmpPredicate::sle);
+      rtlil::LEOp::create(rewriter, op->getLoc(), name, connections, width,
+                          isSigned);
       break;
     case ICmpPredicate::uge:
     case ICmpPredicate::sge:
-      rtlil::GEOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
-                          connections,
-                          op.getLhs().getType().getIntOrFloatBitWidth(),
-                          pred == ICmpPredicate::sge);
+      rtlil::GEOp::create(rewriter, op->getLoc(), name, connections, width,
+                          isSigned);
       break;
     default:
       return failure();
-      break;
     }
     rewriter.replaceOp(op, resultWire);
     return success();
