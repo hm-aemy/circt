@@ -1,4 +1,4 @@
-//===- HWToRTLIL.cpp ----------------------------------------------------===//
+//===--------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "circt/Conversion/HWToRTLIL.h"
-#include "circt/Conversion/RTLILCommon.h"
+#include "HWToRTLILInternals.h"
 #include "circt/Dialect/Comb/CombDialect.h"
 #include "circt/Dialect/Comb/CombOps.h"
 #include "circt/Dialect/HW/HWOps.h"
@@ -31,6 +31,7 @@
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LogicalResult.h"
 #include <cstdint>
 #include <memory>
@@ -49,12 +50,73 @@ using namespace comb;
 // likely symbol table walk with prefixes
 
 //===----------------------------------------------------------------------===//
+// Type conversion
+//===----------------------------------------------------------------------===//
+
+namespace circt::HWToRTLIL {
+
+std::optional<mlir::Type>
+RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
+  auto val = t.getWidth();
+  if (val >= INT32_MAX) {
+    return std::nullopt;
+  }
+  return rtlil::MValueType::get(t.getContext(), val);
+}
+
+std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
+  // A parameterized width has no RTLIL form: an `rtlil.wire` is a fixed number
+  // of bits.
+  auto width = dyn_cast<mlir::IntegerAttr>(t.getWidth());
+  if (!width) {
+    return std::nullopt;
+  }
+  auto val = width.getInt();
+  if (val >= INT32_MAX) {
+    return std::nullopt;
+  }
+  return rtlil::MValueType::get(t.getContext(), val);
+}
+
+std::optional<mlir::Type>
+RTLILTypeConverter::convertClock(circt::seq::ClockType t) {
+  return rtlil::MValueType::get(t.getContext(), 1);
+}
+
+RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
+    : mlir::TypeConverter() {
+  addConversion(convertInt);
+  addConversion(convertInteger);
+  addConversion(convertClock);
+  // Materializing with no input value means "this stands for a module input",
+  // which is the one case that produces a port wire. Everything else is an
+  // ordinary internal wire.
+  //
+  // Every wire gets a unique `$<n>` name here rather than a placeholder;
+  // patterns that know a better name overwrite it. `InstanceConversion` does
+  // not, so without this its result wires would all share one name.
+  addTargetMaterialization([&rtlilContext](mlir::OpBuilder &builder,
+                                           circt::rtlil::MValueType t,
+                                           mlir::ValueRange vals,
+                                           mlir::Location pos) -> mlir::Value {
+    bool isInput = vals.empty();
+    if (vals.size() > 1)
+      return {};
+    auto name =
+        builder.getStringAttr(llvm::formatv("${0}", ++rtlilContext.nameCtr));
+    return rtlil::WireOp::create(builder, pos, t, name, 0, 0, 0, isInput, 0, 0);
+  });
+}
+
+} // namespace circt::HWToRTLIL
+
+//===----------------------------------------------------------------------===//
 // Conversion patterns
 //===----------------------------------------------------------------------===//
 
 namespace {
 
-using rtlil::ConversionPatternBase;
+using HWToRTLIL::ConversionPatternBase;
 
 /// Build a synchronously reset register.
 /// Combination of `rtlil.dff` and `rtlil.mux` for the reset value.
@@ -403,7 +465,7 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
   matchAndRewrite(hw::InstanceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     llvm::SmallVector<mlir::Attribute> ports;
-    auto definingOp = rtlil::lookupSymbolWalkTables<hw::HWModuleOp>(
+    auto definingOp = HWToRTLIL::lookupSymbolWalkTables<hw::HWModuleOp>(
         op, op.getModuleNameAttr());
     if (!definingOp)
       return failure();
@@ -624,7 +686,7 @@ struct ConvertHWToRTLILPass
 } // namespace
 
 static void populateHWToRTLILConversionPatterns(
-    TypeConverter &converter, rtlil::ConversionPatternContext &rtlilContext,
+    TypeConverter &converter, HWToRTLIL::ConversionPatternContext &rtlilContext,
     RewritePatternSet &patterns) {
   patterns
       .add<ModuleConversion, OutputConversion,
@@ -653,7 +715,7 @@ static void populateHWToRTLILConversionPatterns(
 static LogicalResult prepareForConversion(mlir::ModuleOp module) {
   auto walk = module.walk([](hw::InstanceOp op) -> mlir::WalkResult {
     // Not supported `hw.module.extern` and `hw.module.generated`.
-    auto *callee = rtlil::lookupSymbolWalkTables(op, op.getModuleNameAttr());
+    auto *callee = HWToRTLIL::lookupSymbolWalkTables(op, op.getModuleNameAttr());
     if (callee && !isa<hw::HWModuleOp>(callee)) {
       op.emitOpError("instantiates ")
               .append(op.getModuleName())
@@ -700,10 +762,10 @@ void ConvertHWToRTLILPass::runOnOperation() {
   target.addIllegalDialect<comb::CombDialect>();
   target.addIllegalDialect<seq::SeqDialect>();
   target.addLegalOp<mlir::ModuleOp>();
-  rtlil::ConversionPatternContext context;
+  HWToRTLIL::ConversionPatternContext context;
 
   RewritePatternSet patterns(&getContext());
-  rtlil::RTLILTypeConverter converter(context);
+  HWToRTLIL::RTLILTypeConverter converter(context);
   populateHWToRTLILConversionPatterns(converter, context, patterns);
   // No topological sort afterwards: an `rtlil.module` body is a graph region,
   // so a cell may precede the `rtlil.wire` it drives.

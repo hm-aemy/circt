@@ -11,7 +11,7 @@ add_circt_conversion_library(CIRCTHWToRTLIL
   CIRCTHW
   CIRCTComb
   CIRCTRTLIL
-  CIRCTRTLILCommon
+  CIRCTSeq
   MLIRTransforms
   MLIRPass
   MLIRSupport
