@@ -61,6 +61,7 @@ static Yosys::RTLIL::IdString id(StringRef name) {
   return Yosys::RTLIL::IdString(std::string_view(name.data(), name.size()));
 }
 
+/// Must match `circtLocAttrName` in ExportRTLIL.cpp, the only writer.
 static constexpr StringRef circtLocAttrName = "\\circt.loc";
 
 namespace {
@@ -78,6 +79,10 @@ private:
 
   /// A value carrying the bits of `spec`, built from the wires already
   /// imported plus `rtlil.const`, `rtlil.slice` and `rtlil.concat` as needed.
+  ///
+  /// `context` is the subject of any diagnostic ("port \\A of cell $and"): a
+  /// `SigSpec` is not an `AttrObject`, so it has no `src` of its own and every
+  /// signal under a cell shares that cell's location.
   Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
                       const Twine &context);
 
@@ -126,6 +131,8 @@ struct SrcPiece {
 };
 } // namespace
 
+/// Parse `line.col`. The column is optional: Yosys omits it when the frontend
+/// had none.
 static std::optional<std::pair<unsigned, unsigned>>
 parseLineCol(StringRef text) {
   auto [lineStr, colStr] = text.split('.');
@@ -137,6 +144,8 @@ parseLineCol(StringRef text) {
   return std::make_pair(line, col);
 }
 
+/// Parse one `file:line.col-line.col` piece of an RTLIL `src`. The end is kept
+/// because `read_verilog` emits genuine ranges.
 static std::optional<SrcPiece> parseSrcPiece(StringRef piece) {
   // Split at the *last* colon so that a Windows drive letter or a path
   // containing a colon does not confuse the range.
@@ -156,6 +165,8 @@ static std::optional<SrcPiece> parseSrcPiece(StringRef piece) {
 }
 
 Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
+  // `\circt.loc` wins over the `src` derived from it. Anything Yosys made
+  // along the way has only `src`, so this is a preference, not a requirement.
   auto exact = object.attributes.find(id(circtLocAttrName));
   if (exact != object.attributes.end()) {
     std::string text = exact->second.decode_string();
@@ -179,6 +190,8 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
     if (!parsed)
       continue;
     auto file = builder.getStringAttr(parsed->file);
+    // `FileLineColRange::get` does not canonicalize, so collapse a point by
+    // hand or it stops comparing equal to the usual `FileLineColLoc`.
     if (parsed->startLine == parsed->endLine &&
         parsed->startColumn == parsed->endColumn)
       locations.push_back(
@@ -284,6 +297,7 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
   // across Yosys versions.
   SmallVector<std::pair<StringRef, const Yosys::RTLIL::Const *>> sorted;
   for (const auto &[name, value] : object.attributes) {
+    // Both become the op's Location, and export re-derives them from it.
     if (name == Yosys::ID::src || name == id(circtLocAttrName))
       continue;
     sorted.emplace_back(toStringRef(name), &value);
@@ -470,6 +484,8 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
 
   unsigned index = 0;
   for (const auto &[lhs, rhs] : source->connections()) {
+    // Yosys neither names nor locates a connection, so its position in the
+    // list is the only handle a diagnostic has.
     std::string which =
         ("connection " + Twine(index++) + " of module " + name).str();
     Value lhsValue = importSigSpec(lhs, loc, "the left-hand side of " + which);

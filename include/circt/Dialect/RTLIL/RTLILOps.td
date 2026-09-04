@@ -254,6 +254,8 @@ def XorOp : BinOp<"xor">;
 def AddOp : BinOp<"add">;
 def SubOp : BinOp<"sub">;
 def MulOp : BinOp<"mul">;
+// Truncating, like Verilog's `/` and `%`. Yosys' flooring pair is spelled
+// `$divfloor` and `$modfloor`; these are not those cells.
 def DivOp : BinOp<"div">;
 def ModOp : BinOp<"mod">;
 
@@ -278,6 +280,8 @@ class ShiftOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>
 
 def ShlOp : ShiftOp<"shl">;
 def ShrOp : ShiftOp<"shr">;
+// `$sshr` shifts the sign bit in only while A_SIGNED is set; with it clear it
+// is `$shr` under another name.
 def SShrOp : ShiftOp<"sshr">;
 
 class ReduceOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<2>, FixedWidths<["$width", "1"]>]> {

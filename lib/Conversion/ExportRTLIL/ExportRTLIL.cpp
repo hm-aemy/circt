@@ -122,6 +122,8 @@ static Yosys::RTLIL::Const toConst(Attribute value,
 static std::string getSrcAttribute(Location loc) {
   llvm::SmallVector<std::string> pieces;
   std::function<void(Location)> collect = [&](Location current) {
+    // Match the range, not `FileLineColLoc`: a point is the degenerate range
+    // and its end accessors return the start.
     if (auto fileLoc = dyn_cast<FileLineColRange>(current)) {
       pieces.push_back((fileLoc.getFilename().getValue() + ":" +
                         Twine(fileLoc.getStartLine()) + "." +
@@ -140,6 +142,8 @@ static std::string getSrcAttribute(Location loc) {
       collect(named.getChildLoc());
       return;
     }
+    // Only the callee: a flat `src` list cannot express a stack, and losing
+    // the frames beats losing the location. `circt.loc` keeps the whole one.
     if (auto callsite = dyn_cast<CallSiteLoc>(current))
       collect(callsite.getCallee());
   };
@@ -147,6 +151,11 @@ static std::string getSrcAttribute(Location loc) {
   return llvm::join(pieces, "|");
 }
 
+/// A second copy of the location, in MLIR's own syntax.
+///
+/// `src` is what Yosys understands and propagates, but it flattens away a
+/// `NameLoc`'s name, a `CallSiteLoc`'s stack and a `FusedLoc`'s metadata.
+/// Yosys copies attribute dicts, so this rides along as far as `src` does.
 static constexpr StringRef circtLocAttrName = "\\circt.loc";
 
 static std::string getCirctLocAttribute(Location loc) {
