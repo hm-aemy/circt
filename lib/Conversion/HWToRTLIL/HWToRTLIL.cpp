@@ -55,10 +55,19 @@ using namespace comb;
 
 namespace circt::HWToRTLIL {
 
+/// The widths an `rtlil.wire` can hold. `RTLIL::Wire::width` is an `int`, which
+/// sets the upper bound. Zero is rejected too, to match the other end: Yosys
+/// drops a zero-width signal rather than carrying it, so `ImportRTLIL` has
+/// nothing to build an `!rtlil.val` from. Letting one through here would only
+/// move the failure to the round trip.
+static bool isRepresentableWidth(int64_t width) {
+  return width > 0 && width < INT32_MAX;
+}
+
 std::optional<mlir::Type>
 RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
   auto val = t.getWidth();
-  if (val >= INT32_MAX) {
+  if (!isRepresentableWidth(val)) {
     return std::nullopt;
   }
   return rtlil::MValueType::get(t.getContext(), val);
@@ -72,7 +81,7 @@ std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
     return std::nullopt;
   }
   auto val = width.getInt();
-  if (val >= INT32_MAX) {
+  if (!isRepresentableWidth(val)) {
     return std::nullopt;
   }
   return rtlil::MValueType::get(t.getContext(), val);

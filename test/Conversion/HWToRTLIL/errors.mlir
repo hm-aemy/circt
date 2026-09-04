@@ -53,3 +53,15 @@ hw.module @top(in %x : i8, out y : i8) {
   %0 = hw.instance "i0" @BB(a: %x: i8) -> (b: i8)
   hw.output %0 : i8
 }
+
+// -----
+
+// A zero-width value has no `!rtlil.val`: Yosys drops a zero-width signal
+// rather than carrying it, so `ImportRTLIL` rejects one too. Failing the
+// legalization here keeps the two ends agreeing.
+hw.module @top(in %x : i8, out y : i8) {
+  // expected-error@+1 {{failed to legalize operation 'comb.extract' that was explicitly marked illegal}}
+  %0 = comb.extract %x from 0 : (i8) -> i0
+  %1 = comb.concat %x, %0 : i8, i0
+  hw.output %1 : i8
+}
