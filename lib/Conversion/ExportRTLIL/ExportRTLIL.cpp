@@ -25,6 +25,7 @@
 #include "circt/Dialect/Debug/DebugDialect.h"
 #include "circt/Dialect/Emit/EmitDialect.h"
 #include "circt/Dialect/HW/HWDialect.h"
+#include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/LTL/LTLDialect.h"
 #include "circt/Dialect/OM/OMDialect.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
@@ -434,18 +435,8 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
 // Entry points
 //===----------------------------------------------------------------------===//
 
-LogicalResult circt::rtlil::exportRTLILModule(rtlil::ModuleOp module,
-                                              Yosys::RTLIL::Design *design) {
-  ModuleEmitter emitter(design);
-  if (failed(emitter.validate(module)))
-    return failure();
-  return emitter.emit(module);
-}
-
-LogicalResult circt::rtlil::exportRTLIL(mlir::ModuleOp module,
+LogicalResult circt::rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
                                         Yosys::RTLIL::Design *design) {
-  auto modules = llvm::to_vector(module.getOps<rtlil::ModuleOp>());
-
   // Validate everything first: after the first `addModule()` a diagnostic can
   // no longer leave `design` untouched.
   ModuleEmitter validator(design);
@@ -475,10 +466,37 @@ LogicalResult circt::rtlil::exportRTLIL(mlir::ModuleOp module,
 // Translation Registration
 //===----------------------------------------------------------------------===//
 
+/// Reject a module that still holds hardware `exportRTLIL` would not export.
+///
+/// Anything `hw.module`-like is hardware by definition, so its absence from the
+/// `.il` changes what the design means. Metadata that carries none, an
+/// `om.class` or an `emit.file`, is dropped on purpose and stays unreported.
+static LogicalResult checkNothingHardwareIsDropped(mlir::ModuleOp module) {
+  auto leftovers = llvm::to_vector(module.getOps<hw::HWModuleLike>());
+  if (leftovers.empty())
+    return success();
+
+  // `mlir::emitError` on the location rather than `module.emitError()`, whose
+  // "see current operation" note would quote the whole unconverted design.
+  auto diag = mlir::emitError(module.getLoc())
+              << "cannot export a design that is not fully converted: "
+              << leftovers.size() << " hardware module"
+              << (leftovers.size() == 1 ? "" : "s")
+              << " would be missing from the output; run "
+                 "'convert-hw-to-rtlil' first";
+  for (auto leftover : leftovers)
+    diag.attachNote(leftover.getLoc())
+        << "'" << leftover.getModuleName() << "' is not an 'rtlil.module'";
+  return failure();
+}
+
 void circt::rtlil::registerExportRTLILTranslation() {
   static mlir::TranslateFromMLIRRegistration toRTLIL(
       "export-rtlil", "export the RTLIL dialect as an RTLIL (.il) file",
       [](mlir::ModuleOp module, llvm::raw_ostream &os) -> LogicalResult {
+        if (failed(checkNothingHardwareIsDropped(module)))
+          return failure();
+
         if (auto error = circt::yosys::initialize())
           return module.emitError("failed to initialize Yosys: ")
                  << llvm::toString(std::move(error));
@@ -490,7 +508,10 @@ void circt::rtlil::registerExportRTLILTranslation() {
         circt::yosys::LogCapture capture;
 
         Yosys::RTLIL::Design design;
-        if (failed(exportRTLIL(module, &design)))
+        // The `.il` holds the design and nothing else; the check above has
+        // established that nothing with hardware meaning is left behind.
+        if (failed(exportRTLIL(llvm::to_vector(module.getOps<rtlil::ModuleOp>()),
+                               &design)))
           return failure();
 
         // Yosys' own RTLIL backend does the printing. It writes to a

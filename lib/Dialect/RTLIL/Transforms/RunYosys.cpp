@@ -130,8 +130,12 @@ void RunYosysPass::runOnOperation() {
     return signalPassFailure();
   }
 
+  // Only the `rtlil.module`s go to Yosys, which is what lets this pass run on a
+  // partly converted design: an `hw.module` `convert-hw-to-rtlil` could not
+  // handle stays in the file and is still there when the import writes back.
   Yosys::RTLIL::Design design;
-  if (failed(circt::rtlil::exportRTLIL(module, &design)))
+  auto exported = llvm::to_vector(module.getOps<circt::rtlil::ModuleOp>());
+  if (failed(circt::rtlil::exportRTLIL(exported, &design)))
     return signalPassFailure();
 
   std::vector<std::string> commands;
