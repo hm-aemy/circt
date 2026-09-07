@@ -17,8 +17,21 @@ add_circt_translation_library(CIRCTExportRTLIL
   Support
 
   LINK_LIBS PUBLIC
+  # Besides CIRCTRTLIL, the dialects the translation registers so that the file
+  # it is handed parses at all. See the `DialectRegistry` callback in
+  # `ExportRTLIL.cpp`.
+  CIRCTComb
+  CIRCTDebug
+  CIRCTEmit
+  CIRCTHW
+  CIRCTLTL
+  CIRCTOM
   CIRCTRTLIL
+  CIRCTSV
+  CIRCTSeq
+  CIRCTSim
   CIRCTSupport
+  CIRCTVerif
   MLIRIR
   MLIRSupport
   MLIRTranslateLib

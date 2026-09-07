@@ -21,8 +21,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "circt/Conversion/ExportRTLIL.h"
+#include "circt/Dialect/Comb/CombDialect.h"
+#include "circt/Dialect/Debug/DebugDialect.h"
+#include "circt/Dialect/Emit/EmitDialect.h"
+#include "circt/Dialect/HW/HWDialect.h"
+#include "circt/Dialect/LTL/LTLDialect.h"
+#include "circt/Dialect/OM/OMDialect.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/RTLIL/RTLILTypes.h"
+#include "circt/Dialect/SV/SVDialect.h"
+#include "circt/Dialect/Seq/SeqDialect.h"
+#include "circt/Dialect/Sim/SimDialect.h"
+#include "circt/Dialect/Verif/VerifDialect.h"
 #include "circt/Yosys/Yosys.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -493,6 +503,18 @@ void circt::rtlil::registerExportRTLILTranslation() {
         return success();
       },
       [](DialectRegistry &registry) {
-        registry.insert<circt::rtlil::RTLILDialect>();
+        // Registered here is the language of the input file, not the one
+        // dialect the translation consumes. `convert-hw-to-rtlil` rewrites comb
+        // and seq and leaves everything else alone, so a real file still
+        // carries the metadata firtool emits beside the hardware, and the
+        // hardware dialects themselves when the conversion was partial.
+        // Registering rtlil alone made that fail to parse; the generic syntax
+        // is no way out, since `om.class` has a custom assembly format.
+        registry.insert<circt::rtlil::RTLILDialect, circt::hw::HWDialect,
+                        circt::comb::CombDialect, circt::seq::SeqDialect,
+                        circt::sv::SVDialect, circt::sim::SimDialect,
+                        circt::verif::VerifDialect, circt::ltl::LTLDialect,
+                        circt::om::OMDialect, circt::emit::EmitDialect,
+                        circt::debug::DebugDialect>();
       });
 }
