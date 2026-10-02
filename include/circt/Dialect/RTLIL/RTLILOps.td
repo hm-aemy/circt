@@ -204,7 +204,10 @@ def ModuleOp : RTLILOp<"module", [
     // here and `SmallVector<WireOp>` cannot be named.
   }];
 
+  // The body checks read the nested ops' attributes, so they run in
+  // `verifyRegions()`, after those ops have passed their own verifiers.
   let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//

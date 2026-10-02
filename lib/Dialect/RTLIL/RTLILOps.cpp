@@ -92,7 +92,10 @@ LogicalResult rtlil::ModuleOp::verify() {
            << getSymName()
            << " is not a valid RTLIL identifier; it must start with '\\' or "
               "'$' and contain no spaces or control characters";
+  return success();
+}
 
+LogicalResult rtlil::ModuleOp::verifyRegions() {
   // Wires and cells share one Yosys namespace; a duplicate corrupts the design.
   DenseMap<StringRef, Operation *> declared;
   // `port_id` is 1-based and must be dense: `fixup_ports()` silently renumbers

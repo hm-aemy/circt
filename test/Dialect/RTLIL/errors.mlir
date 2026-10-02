@@ -1,9 +1,20 @@
 // RUN: circt-opt %s --verify-diagnostics --split-input-file
 
-// Outside an `rtlil.module`: the module verifier runs before the wire's own
-// and reads its name.
-%1 = "rtlil.wire"() <{}> : () -> !rtlil<val[32]>
-// expected-error@-1 {{'rtlil.wire' op requires attribute 'name'}}
+// The module's body checks read this wire's name, so they must not run before
+// the wire's own verifier has rejected it.
+rtlil.module @"\\top" {
+  %1 = "rtlil.wire"() <{}> : () -> !rtlil<val[32]>
+  // expected-error@-1 {{'rtlil.wire' op requires attribute 'name'}}
+}
+
+// -----
+
+// Likewise for a cell's name.
+rtlil.module @"\\top" {
+  %a = rtlil.wire "\\a" : !rtlil<val[1]>
+  // expected-error@+1 {{'rtlil.cell' op requires attribute 'name'}}
+  "rtlil.cell"(%a) <{type = "$not", ports = ["\\A"], parameters = []}> : (!rtlil<val[1]>) -> ()
+}
 
 // -----
 
