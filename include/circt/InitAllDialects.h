@@ -42,6 +42,7 @@
 #ifdef CIRCT_INCLUDE_TESTS
 #include "circt/Dialect/RTGTest/IR/RTGTestDialect.h"
 #endif
+#include "circt/Dialect/RTLIL/RTLILDialect.h"
 #include "circt/Dialect/SSP/SSPDialect.h"
 #include "circt/Dialect/SV/SVDialect.h"
 #include "circt/Dialect/Seq/SeqDialect.h"
@@ -49,7 +50,6 @@
 #include "circt/Dialect/Synth/SynthDialect.h"
 #include "circt/Dialect/SystemC/SystemCDialect.h"
 #include "circt/Dialect/Verif/VerifDialect.h"
-#include "circt/Dialect/RTLIL/RTLILDialect.h"
 #include "mlir/Dialect/SMT/IR/SMTDialect.h"
 #include "mlir/IR/Dialect.h"
 
@@ -87,6 +87,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
 #ifdef CIRCT_INCLUDE_TESTS
     rtgtest::RTGTestDialect,
 #endif
+    rtlil::RTLILDialect,
     seq::SeqDialect,
     sim::SimDialect,
     mlir::smt::SMTDialect,
@@ -94,8 +95,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
     sv::SVDialect,
     synth::SynthDialect,
     systemc::SystemCDialect,
-    verif::VerifDialect,
-    rtlil::RTLILDialect
+    verif::VerifDialect
   >();
   // clang-format on
 }
