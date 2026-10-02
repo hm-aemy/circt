@@ -9,8 +9,8 @@ hw.module @narymod(in %a: i8, in %b: i8, in %c: i8, out o: i8) {
   // CHECK-DAG: [[B:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\b"
   // CHECK-DAG: [[C:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\c"
   // CHECK-DAG: [[O:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\o"
-  // CHECK-DAG: "rtlil.xor"([[A]], [[B]], [[T:%[0-9]+]]) <{{.*}}type = "$xor"{{.*}}width = 8
-  // CHECK-DAG: "rtlil.xor"([[T]], [[C]], [[RES:%[0-9]+]]) <{{.*}}type = "$xor"{{.*}}width = 8
+  // CHECK-DAG: xor "{{[^"]*}}"([[A]], [[B]], [[T:%[0-9]+]]) {{.*}}width = 8
+  // CHECK-DAG: xor "{{[^"]*}}"([[T]], [[C]], [[RES:%[0-9]+]]) {{.*}}width = 8
   // CHECK-DAG: "rtlil.wconnection"([[O]], [[RES]])
   %0 = comb.xor %a, %b, %c : i8
   hw.output %0 : i8
@@ -18,17 +18,17 @@ hw.module @narymod(in %a: i8, in %b: i8, in %c: i8, out o: i8) {
 
 // CHECK-LABEL: rtlil.module @"\\arithmod"
 hw.module @arithmod(in %a: i8, in %b: i8, out o0: i8, out o1: i8, out o2: i8, out o3: i8, out o4: i8) {
-  // CHECK-DAG: "rtlil.mul"({{.*}}) <{{.*}}opsSigned = 0 : i32{{.*}}type = "$mul"{{.*}}width = 8
+  // CHECK-DAG: mul "{{[^"]*}}"({{.*}}) {{.*}}opsSigned = 0 : i32{{.*}}width = 8
   %0 = comb.mul %a, %b : i8
   // The signed and unsigned pairs share a cell type and differ only in
   // `A_SIGNED`/`B_SIGNED`, which `opsSigned` stands for.
-  // CHECK-DAG: "rtlil.div"({{.*}}) <{{.*}}opsSigned = 0 : i32{{.*}}type = "$div"
+  // CHECK-DAG: div "{{[^"]*}}"({{.*}}) {{.*}}opsSigned = 0 : i32
   %1 = comb.divu %a, %b : i8
-  // CHECK-DAG: "rtlil.div"({{.*}}) <{{.*}}opsSigned = 1 : i32{{.*}}type = "$div"
+  // CHECK-DAG: div "{{[^"]*}}"({{.*}}) {{.*}}opsSigned = 1 : i32
   %2 = comb.divs %a, %b : i8
-  // CHECK-DAG: "rtlil.mod"({{.*}}) <{{.*}}opsSigned = 0 : i32{{.*}}type = "$mod"
+  // CHECK-DAG: mod "{{[^"]*}}"({{.*}}) {{.*}}opsSigned = 0 : i32
   %3 = comb.modu %a, %b : i8
-  // CHECK-DAG: "rtlil.mod"({{.*}}) <{{.*}}opsSigned = 1 : i32{{.*}}type = "$mod"
+  // CHECK-DAG: mod "{{[^"]*}}"({{.*}}) {{.*}}opsSigned = 1 : i32
   %4 = comb.mods %a, %b : i8
   hw.output %0, %1, %2, %3, %4 : i8, i8, i8, i8, i8
 }
@@ -37,11 +37,11 @@ hw.module @arithmod(in %a: i8, in %b: i8, out o0: i8, out o1: i8, out o2: i8, ou
 // right shift is `$sshr` with it set, not `$shr`.
 // CHECK-LABEL: rtlil.module @"\\shiftmod"
 hw.module @shiftmod(in %a: i8, in %b: i8, out o0: i8, out o1: i8, out o2: i8) {
-  // CHECK-DAG: "rtlil.shl"({{.*}}) <{aSigned = 0 : i32{{.*}}type = "$shl"{{.*}}width = 8
+  // CHECK-DAG: shl "{{[^"]*}}"({{.*}}) {aSigned = 0 : i32{{.*}}width = 8
   %0 = comb.shl %a, %b : i8
-  // CHECK-DAG: "rtlil.shr"({{.*}}) <{aSigned = 0 : i32{{.*}}type = "$shr"
+  // CHECK-DAG: shr "{{[^"]*}}"({{.*}}) {aSigned = 0 : i32
   %1 = comb.shru %a, %b : i8
-  // CHECK-DAG: "rtlil.sshr"({{.*}}) <{aSigned = 1 : i32{{.*}}type = "$sshr"
+  // CHECK-DAG: sshr "{{[^"]*}}"({{.*}}) {aSigned = 1 : i32
   %2 = comb.shrs %a, %b : i8
   hw.output %0, %1, %2 : i8, i8, i8
 }
@@ -50,7 +50,7 @@ hw.module @shiftmod(in %a: i8, in %b: i8, out o0: i8, out o1: i8, out o2: i8) {
 // CHECK-LABEL: rtlil.module @"\\paritymod"
 hw.module @paritymod(in %a: i8, out o: i1) {
   // CHECK-DAG: [[A:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\a"
-  // CHECK-DAG: "rtlil.reduce_xor"([[A]], [[RES:%[0-9]+]]) <{aSigned = 0 : i32{{.*}}ports = ["\\A", "\\Y"]{{.*}}type = "$reduce_xor"{{.*}}width = 8
+  // CHECK-DAG: reduce_xor "{{[^"]*}}"([[A]], [[RES:%[0-9]+]]) {aSigned = 0 : i32{{.*}}width = 8
   // CHECK-DAG: [[RES]] = "rtlil.wire"(){{.*}}: () -> !rtlil<val[1]>
   %0 = comb.parity %a : i8
   hw.output %0 : i1

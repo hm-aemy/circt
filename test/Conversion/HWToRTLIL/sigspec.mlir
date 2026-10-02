@@ -31,7 +31,7 @@ hw.module @mixedmod(in %in : i8, out res : i4) {
   // CHECK-DAG: [[IN:%[0-9]+]] = "rtlil.wire"() {{.*}}name = "\\in"{{.*}}port_input = true
   // CHECK-DAG: [[HI:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 4 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
   // CHECK-DAG: [[LO:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 0 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
-  // CHECK-DAG: "rtlil.and"([[HI]], [[LO]], [[AND:%[0-9]+]]){{.*}}width = 4
+  // CHECK-DAG: and "{{[^"]*}}"([[HI]], [[LO]], [[AND:%[0-9]+]]){{.*}}width = 4
   %hi = comb.extract %in from 4 : (i8) -> i4
   %lo = comb.extract %in from 0 : (i8) -> i4
   %0 = comb.and %hi, %lo : i4

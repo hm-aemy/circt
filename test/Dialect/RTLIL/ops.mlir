@@ -23,38 +23,38 @@ rtlil.module @"\\top" {
   %5 = "rtlil.wire"() <{name="$5", is_signed = false}> : () -> !rtlil<val[32]>
   %6 = "rtlil.const"() <{value = #rtlil.const<"000000000000000000000000000-zx10">}> : () -> !rtlil<val[32]>
 
-  "rtlil.and"(%1, %6, %4) <{name="$and",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.or"(%1, %6, %4) <{name="$or",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.sub"(%1, %6, %4) <{name="$sub",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.xor"(%1, %6, %4) <{name="$xor",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.mul"(%1, %6, %4) <{name="$mul",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.div"(%1, %6, %4) <{name="$div",width= 32 : i32, opsSigned = 1 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.mod"(%1, %6, %4) <{name="$mod",width= 32 : i32, opsSigned = 1 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  rtlil.and "$and"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.or "$or"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.sub "$sub"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.xor "$xor"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.mul "$mul"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.div "$div"(%1, %6, %4) {opsSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.mod "$mod"(%1, %6, %4) {opsSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
 
   // The shift cells spell the A_SIGNED parameter on its own: B is unsigned
   // whatever A is.
-  "rtlil.shl"(%1, %6, %4) <{name="$shl",width= 32 : i32, aSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.shr"(%1, %6, %4) <{name="$shr",width= 32 : i32, aSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  "rtlil.sshr"(%1, %6, %4) <{name="$sshr",width= 32 : i32, aSigned = 1 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  rtlil.shl "$shl"(%1, %6, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.shr "$shr"(%1, %6, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.sshr "$sshr"(%1, %6, %4) {aSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
 
   %8 = "rtlil.wire"() <{name="$8", is_signed = false}> : () -> !rtlil<val[1]>
-  "rtlil.gt"(%1, %6, %8) <{name="$gt",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.eq"(%1, %6, %8) <{name="$eq",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.ne"(%1, %6, %8) <{name="$ne",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.eqx"(%1, %6, %8) <{name="$eqx",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.nex"(%1, %6, %8) <{name="$nex",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.ge"(%1, %6, %8) <{name="$ge",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.le"(%1, %6, %8) <{name="$le",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  "rtlil.lt"(%1, %6, %8) <{name="$lt",width= 32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
+  rtlil.gt "$gt"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.eq "$eq"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.ne "$ne"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.eqx "$eqx"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.nex "$nex"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.ge "$ge"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.le "$le"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.lt "$lt"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
 
   // A reduction takes A and Y only.
-  "rtlil.reduce_xor"(%1, %8) <{name="$reduce_xor",width= 32 : i32, aSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[1]>) -> ()
+  rtlil.reduce_xor "$reduce_xor"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
 
   %clk = "rtlil.wire"() <{name="\\clk", is_signed = false}> : () -> !rtlil<val[1]>
 
-  "rtlil.dff"(%clk, %6, %1) <{name="$dff",width= 32 : i32}> : (!rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  rtlil.dff "$dff"(%clk, %6, %1) {width = 32 : i32} : !rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[32]>
 
-  "rtlil.aldff"(%clk, %6, %clk, %6, %1) <{name="$aldff",width= 32 : i32}> : (!rtlil<val[1]>, !rtlil<val[32]>,!rtlil<val[1]>,!rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  rtlil.aldff "$aldff"(%clk, %6, %clk, %6, %1) {width = 32 : i32} : !rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[32]>
 
   // Port names are the callee's wire names, sigil included -- not bare
   // identifiers: `RTLIL::Cell::setPort` interns them as `IdString`s.

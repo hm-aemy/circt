@@ -17,8 +17,8 @@ hw.module @test(in %arg0: i32, in %arg1: i32, in %arg2: i32, in %arg3: i32, out 
   // CHECK-DAG: %[[OUT0:.+]] = "rtlil.wire"() <{{.*}}name = "\\out0"{{.*}}port_id = 5 {{.*}}port_output = true{{.*}}> : () -> !rtlil<val[32]>
   // CHECK-DAG: %[[OUT1:.+]] = "rtlil.wire"() <{{.*}}name = "\\out1"{{.*}}port_id = 6 {{.*}}port_output = true{{.*}}> : () -> !rtlil<val[32]>
 
-  // CHECK-DAG: "rtlil.and"(%[[OP1]], %[[OP2]], %[[RES1:.+]]) <{{.*name = "\$[0-9]+".*type = "\$and".*}}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // CHECK-DAG: "rtlil.and"(%[[OP3]], %[[OP4]], %[[RES2:.+]]) <{{.*name = "\$[0-9]+".*type = "\$and".*}}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  // CHECK-DAG: and "${{[0-9]+}}"(%[[OP1]], %[[OP2]], %[[RES1:.+]]) {{.*}} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  // CHECK-DAG: and "${{[0-9]+}}"(%[[OP3]], %[[OP4]], %[[RES2:.+]]) {{.*}} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   %0 = comb.and %arg0, %arg1 : i32
   %1 = comb.and %arg2, %arg3 : i32
   // CHECK-DAG: "rtlil.wconnection"(%[[OUT0]], %[[RES1]])

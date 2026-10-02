@@ -229,14 +229,32 @@ class FixedOperands<int n> : AllMatch<["getNumOperands()", "" # n], "has " # n #
 
 class FixedWidths<list<string> widths> : MValueExpander, TraitList<!foreach(idx, !range(widths), AllMatch<["::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
 
-class BinOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "$width"]>]> {
+// A cell type with a dedicated op. `ports` and `widths` line up with
+// `$connections`; `extraArgs` is whatever the family adds between `$width` and
+// `$type`, such as a signedness flag. `$type` and `$ports` are fixed by the op,
+// so the assembly format leaves them to `attr-dict`, which elides them at their
+// defaults.
+class TypedCellOp<string t, list<string> ports, list<string> widths,
+                  dag extraArgs = (ins)>
+    : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>,
+                  FixedOperands<!size(widths)>, FixedWidths<widths>]> {
+  let arguments = !con(
+      (ins StrAttr:$name,
+           Variadic<MValueType>:$connections,
+           I32Attr:$width),
+      extraArgs,
+      (ins DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
+           DefaultValuedAttr<StrArrayAttr,
+             "{" # !interleave(!foreach(p, ports, [{"\\}] # p # [{"}]), ", ") # "}">:$ports));
+  let assemblyFormat = [{
+    $name `(` $connections `)` attr-dict `:` type($connections)
+  }];
+}
+
+class BinOp<string t>
+    : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "$width"],
+                  (ins I32Attr:$opsSigned)> {
   let summary = "The RTLIL `" # t # "` cell, with equally wide A, B and Y ports";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      I32Attr:$opsSigned,
-                      DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\Y"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\A_SIGNED", 32, getOpsSigned()},
@@ -259,14 +277,10 @@ def MulOp : BinOp<"mul">;
 def DivOp : BinOp<"div">;
 def ModOp : BinOp<"mod">;
 
-class ShiftOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "$width"]>]> {
+class ShiftOp<string t>
+    : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "$width"],
+                  (ins I32Attr:$aSigned)> {
   let summary = "The RTLIL `" # t # "` cell, shifting A by an unsigned B into Y";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      I32Attr:$aSigned,
-                      DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\Y"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\A_SIGNED", 32, getASigned()},
@@ -284,14 +298,9 @@ def ShrOp : ShiftOp<"shr">;
 // is `$shr` under another name.
 def SShrOp : ShiftOp<"sshr">;
 
-class ReduceOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<2>, FixedWidths<["$width", "1"]>]> {
+class ReduceOp<string t>
+    : TypedCellOp<t, ["A", "Y"], ["$width", "1"], (ins I32Attr:$aSigned)> {
   let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      I32Attr:$aSigned,
-                      DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\Y"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\A_SIGNED", 32, getASigned()},
@@ -303,13 +312,9 @@ class ReduceOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface
 
 def ReduceXorOp : ReduceOp<"reduce_xor">;
 
-def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<4>, FixedWidths<["$width", "$width", "1", "$width"]>]> {
+def MuxOp : TypedCellOp<"mux", ["A", "B", "S", "Y"],
+                        ["$width", "$width", "1", "$width"]> {
   let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      DefaultValuedAttr<StrAttr, [{"$$mux"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\S", "\\Y"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\WIDTH", 32, getWidth()},
@@ -317,14 +322,10 @@ def MuxOp : RTLILOp<"mux", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
                           }], "getParameters()">;
 }
 
-class CmpOp<string t> : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["$width", "$width", "1"]>]> {
+class CmpOp<string t>
+    : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "1"],
+                  (ins I32Attr:$opsSigned)> {
   let summary = "The RTLIL `" # t # "` cell, comparing A and B into a one-bit Y";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      I32Attr:$opsSigned,
-                      DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\A", "\\B", "\\Y"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                             return ::circt::rtlil::createParamArrayAttr(getContext(), {
                               {"\\A_SIGNED", 32, getOpsSigned()},
@@ -348,13 +349,8 @@ def LTOp : CmpOp<"lt">;
 def EQXOp : CmpOp<"eqx">;
 def NEXOp : CmpOp<"nex">;
 
-def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<3>, FixedWidths<["1", "$width", "$width"]>]> {
+def DFFOp : TypedCellOp<"dff", ["CLK", "D", "Q"], ["1", "$width", "$width"]> {
   let summary = "The RTLIL `dff` cell: Q takes D on the rising CLK edge";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      DefaultValuedAttr<StrAttr, [{"$$dff"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\CLK", "\\D", "\\Q"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                         return ::circt::rtlil::createParamArrayAttr(getContext(), {
                           {"\\WIDTH", 32, getWidth()},
@@ -363,13 +359,9 @@ def DFFOp : RTLILOp<"dff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOpe
                       }], "getParameters()">;
 }
 
-def ALDFFOp : RTLILOp<"aldff", [DeclareOpInterfaceMethods<CellOpInterface>, FixedOperands<5>, FixedWidths<["1", "$width", "1", "$width", "$width"]>]> {
+def ALDFFOp : TypedCellOp<"aldff", ["CLK", "D", "ALOAD", "AD", "Q"],
+                          ["1", "$width", "1", "$width", "$width"]> {
   let summary = "The RTLIL `aldff` cell: a `dff` that loads AD while ALOAD is 1";
-  let arguments = (ins StrAttr:$name,
-                      Variadic<MValueType>:$connections,
-                      I32Attr:$width,
-                      DefaultValuedAttr<StrAttr, [{"$$aldff"}]>:$type,
-                      DefaultValuedAttr<StrArrayAttr, [{ {"\\CLK", "\\D", "\\ALOAD", "\\AD", "\\Q"} }]>:$ports);
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
                         return ::circt::rtlil::createParamArrayAttr(getContext(), {
                           {"\\WIDTH", 32, getWidth()},

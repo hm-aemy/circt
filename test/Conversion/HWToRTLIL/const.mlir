@@ -12,8 +12,8 @@ hw.module @ormod(in %x: i32, in %y: i32, out res1: i32, out res2: i32) {
   %2 = hw.constant 700 : i32
   // The cells drive internal wires; the output ports are driven from those by a
   // connection.
-  // CHECK-DAG: "rtlil.or"([[X]], [[CONST500]], [[OR1:%[0-9]+]]) {{.*}}
-  // CHECK-DAG: "rtlil.or"([[Y]], [[CONST700]], [[OR2:%[0-9]+]]) {{.*}}
+  // CHECK-DAG: or "{{[^"]*}}"([[X]], [[CONST500]], [[OR1:%[0-9]+]])
+  // CHECK-DAG: or "{{[^"]*}}"([[Y]], [[CONST700]], [[OR2:%[0-9]+]])
   %res1 = comb.or %x, %1 : i32
   %res2 = comb.or %y, %2 : i32
   // CHECK-DAG: "rtlil.wconnection"([[RES1]], [[OR1]])
