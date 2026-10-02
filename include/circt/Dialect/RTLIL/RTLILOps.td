@@ -47,11 +47,11 @@ def ConstOp : MValueExpander, RTLILOp<"const",
   let description = [{
     Materializes one `RTLIL::Const`: the constant chunks of a SigSpec, and the
     right-hand side of a constant connection. Bits are written most significant
-    first, so `rtlil.const "1010" : !rtlil<val[4]>` is 10.
+    first, so `rtlil.const <"1010"> : !rtlil<val[4]>` is 10.
   }];
   let arguments = (ins ConstAttr:$value);
   let results = (outs MValueType:$result);
-  let assemblyFormat = "custom<ConstValue>($value) attr-dict `:` type($result)";
+  let assemblyFormat = "$value attr-dict `:` type($result)";
 }
 
 //===----------------------------------------------------------------------===//

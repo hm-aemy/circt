@@ -8,11 +8,11 @@
 rtlil.module @"\\top" {
   %w = "rtlil.wire"() <{name = "\\w", is_signed = false}> : () -> !rtlil<val[4]>
 
-  // CHECK: %[[C:.+]] = const "1010" : [4]
+  // CHECK: %[[C:.+]] = const <"1010"> : [4]
   // CHECK-NOT: const
-  %a = rtlil.const "1010" : !rtlil<val[4]>
-  %b = rtlil.const "1010" : !rtlil<val[4]>
-  %unused = rtlil.const "1111" : !rtlil<val[4]>
+  %a = rtlil.const <"1010"> : !rtlil<val[4]>
+  %b = rtlil.const <"1010"> : !rtlil<val[4]>
+  %unused = rtlil.const <"1111"> : !rtlil<val[4]>
 
   // CHECK: "rtlil.wconnection"(%{{.+}}, %[[C]])
   // CHECK: "rtlil.wconnection"(%{{.+}}, %[[C]])
