@@ -107,13 +107,15 @@ def WireOp : RTLILOp<"wire"> {
     are Verilog declaration cosmetics (`wire [7:4]`, `wire [0:7]`) carried for
     the backends; they do not affect bit numbering here.
   }];
+  // The flags are `UnitAttr`s so that the assembly format can spell them as
+  // bare keywords, the way RTLIL's own `wire width 8 signed input 1 \a` does.
   let arguments = (ins StrAttr:$name
-                       ,BoolAttr:$is_signed
+                       ,UnitAttr:$is_signed
                        ,DefaultValuedAttr<I32Attr, "0">:$port_id
                        ,DefaultValuedAttr<I32Attr, "0">:$start_offset
-                       ,DefaultValuedAttr<BoolAttr, "false">:$port_input
-                       ,DefaultValuedAttr<BoolAttr, "false">:$port_output
-                       ,DefaultValuedAttr<BoolAttr, "false">:$upto
+                       ,UnitAttr:$port_input
+                       ,UnitAttr:$port_output
+                       ,UnitAttr:$upto
                        // The RTLIL `attributes` dict. `src` is not stored here:
                        // it becomes the op's Location on import and is derived
                        // back from it on export, so keeping it would duplicate.
@@ -123,6 +125,12 @@ def WireOp : RTLILOp<"wire"> {
         return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth());
                           }], "getWidth()">;
   let results = (outs MValueType:$result);
+  let assemblyFormat = [{
+    $name (`signed` $is_signed^)? (`input` $port_input^)?
+    (`output` $port_output^)? (`port` $port_id^)? (`offset` $start_offset^)?
+    (`upto` $upto^)? (`attributes` $rtlil_attributes^)? attr-dict
+    `:` type($result)
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -222,6 +230,11 @@ def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
                        ,ParamArrayAttr:$parameters
                        ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
   );
+  let assemblyFormat = [{
+    $name $type custom<CellPorts>($connections, $ports)
+    `parameters` $parameters (`attributes` $rtlil_attributes^)? attr-dict
+    (`:` type($connections)^)?
+  }];
 }
 
 class FixedOperands<int n> : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;

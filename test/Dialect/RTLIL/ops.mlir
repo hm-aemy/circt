@@ -3,8 +3,8 @@
 // A callee for the `rtlil.instance` below. `rtlil.instance` checks its
 // connections against this module's port wires, so the ports have to be real.
 rtlil.module @"\\add" {
-  %a = "rtlil.wire"() <{name="\\a", is_signed = false, port_id = 1 : i32, port_input = true}> : () -> !rtlil<val[32]>
-  %y = "rtlil.wire"() <{name="\\y", is_signed = false, port_id = 2 : i32, port_output = true}> : () -> !rtlil<val[32]>
+  %a = rtlil.wire "\\a" input port 1 : !rtlil<val[32]>
+  %y = rtlil.wire "\\y" output port 2 : !rtlil<val[32]>
 }
 
 // Wires and cells share a single per-module namespace in RTLIL
@@ -12,15 +12,15 @@ rtlil.module @"\\add" {
 // here is distinct -- an exporter handing duplicates to Yosys would take the
 // process down with it.
 rtlil.module @"\\top" {
-  %1 = "rtlil.wire"() <{name="$1", is_signed = false}> : () -> !rtlil<val[32]>
+  %1 = rtlil.wire "$1" : !rtlil<val[32]>
   // A fully attributed wire. `port_id` is 1 rather than an arbitrary number
   // because ports must be numbered exactly 1..N -- `fixup_ports()` renumbers
   // anything else behind the exporter's back.
-  %2 = "rtlil.wire"() <{name="$2", is_signed = true, port_input = false, port_output = true, upto = true, port_id = 1 : i32, start_offset = 3 : i32}> : () -> !rtlil<val[64]>
+  %2 = rtlil.wire "$2" signed output port 1 offset 3 upto : !rtlil<val[64]>
 
   %3 = "rtlil.const"() <{value = #rtlil.const<"-zx10">}> : () -> !rtlil<val[5]>
-  %4 = "rtlil.wire"() <{name="$4", is_signed = false}> : () -> !rtlil<val[32]>
-  %5 = "rtlil.wire"() <{name="$5", is_signed = false}> : () -> !rtlil<val[32]>
+  %4 = rtlil.wire "$4" : !rtlil<val[32]>
+  %5 = rtlil.wire "$5" : !rtlil<val[32]>
   %6 = "rtlil.const"() <{value = #rtlil.const<"000000000000000000000000000-zx10">}> : () -> !rtlil<val[32]>
 
   rtlil.and "$and"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
@@ -37,7 +37,7 @@ rtlil.module @"\\top" {
   rtlil.shr "$shr"(%1, %6, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.sshr "$sshr"(%1, %6, %4) {aSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
 
-  %8 = "rtlil.wire"() <{name="$8", is_signed = false}> : () -> !rtlil<val[1]>
+  %8 = rtlil.wire "$8" : !rtlil<val[1]>
   rtlil.gt "$gt"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
   rtlil.eq "$eq"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
   rtlil.ne "$ne"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
@@ -50,7 +50,7 @@ rtlil.module @"\\top" {
   // A reduction takes A and Y only.
   rtlil.reduce_xor "$reduce_xor"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
 
-  %clk = "rtlil.wire"() <{name="\\clk", is_signed = false}> : () -> !rtlil<val[1]>
+  %clk = rtlil.wire "\\clk" : !rtlil<val[1]>
 
   rtlil.dff "$dff"(%clk, %6, %1) {width = 32 : i32} : !rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[32]>
 
@@ -65,7 +65,7 @@ rtlil.module @"\\top" {
 // shape a cell port takes after `opt`/`techmap`/`abc`. Operands are ordered
 // least significant first.
 rtlil.module @"\\sigspec" {
-  %w = "rtlil.wire"() <{name="\\w", is_signed = false}> : () -> !rtlil<val[8]>
+  %w = rtlil.wire "\\w" : !rtlil<val[8]>
   %c = "rtlil.const"() <{value = #rtlil.const<"01">}> : () -> !rtlil<val[2]>
   %s = "rtlil.slice"(%w) <{offset = 3 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
   %y = "rtlil.concat"(%s, %c) : (!rtlil<val[4]>, !rtlil<val[2]>) -> !rtlil<val[6]>
@@ -74,7 +74,7 @@ rtlil.module @"\\sigspec" {
 // Parameters an IntegerAttr cannot carry: a bit vector wider than 64 bits, one
 // containing x/z, and a string.
 rtlil.module @"\\params" {
-  %a = "rtlil.wire"() <{name="\\a", is_signed = false}> : () -> !rtlil<val[1]>
+  %a = rtlil.wire "\\a" : !rtlil<val[1]>
   "rtlil.cell"(%a) <{
     name = "$c", type = "$lut", ports = ["\\A"],
     parameters = [

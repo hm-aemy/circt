@@ -14,6 +14,6 @@
 // expected-note@below {{yosys log:}}
 module {
   rtlil.module @"\\demo" {
-    %0 = "rtlil.wire"() <{name = "\\a", is_signed = false, port_id = 1 : i32, port_input = true}> : () -> !rtlil<val[8]>
+    %0 = rtlil.wire "\\a" input port 1 : !rtlil<val[8]>
   }
 }

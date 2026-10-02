@@ -7,10 +7,8 @@
 // fail to parse, long before the exporter could ignore it.
 
 rtlil.module @"\\top" {
-  %a = "rtlil.wire"() <{name = "\\a", is_signed = false, port_id = 1 : i32,
-                        port_input = true}> : () -> !rtlil<val[8]>
-  %y = "rtlil.wire"() <{name = "\\y", is_signed = false, port_id = 2 : i32,
-                        port_output = true}> : () -> !rtlil<val[8]>
+  %a = rtlil.wire "\\a" input port 1 : !rtlil<val[8]>
+  %y = rtlil.wire "\\y" output port 2 : !rtlil<val[8]>
   "rtlil.wconnection"(%y, %a) : (!rtlil<val[8]>, !rtlil<val[8]>) -> ()
 }
 

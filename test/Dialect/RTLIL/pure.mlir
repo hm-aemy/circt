@@ -6,7 +6,7 @@
 
 // CHECK-LABEL: rtlil.module @"\\top"
 rtlil.module @"\\top" {
-  %w = "rtlil.wire"() <{name = "\\w", is_signed = false}> : () -> !rtlil<val[4]>
+  %w = rtlil.wire "\\w" : !rtlil<val[4]>
 
   // CHECK: %[[C:.+]] = const <"1010"> : [4]
   // CHECK-NOT: const

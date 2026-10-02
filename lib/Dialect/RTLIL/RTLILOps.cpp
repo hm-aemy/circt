@@ -16,6 +16,45 @@
 using namespace circt;
 using namespace rtlil;
 
+//===----------------------------------------------------------------------===//
+// Custom directives
+//===----------------------------------------------------------------------===//
+
+/// The connections of a cell, each next to the port it attaches to:
+/// `["\\A" = %a, "\\Y" = %y]`. `$ports` and `$connections` are parallel
+/// arrays, which the generic form leaves the reader to line up by position.
+static ParseResult
+parseCellPorts(OpAsmParser &parser,
+               SmallVectorImpl<OpAsmParser::UnresolvedOperand> &connections,
+               ArrayAttr &ports) {
+  SmallVector<Attribute> names;
+  auto parsePort = [&]() -> ParseResult {
+    std::string name;
+    if (parser.parseString(&name) || parser.parseEqual() ||
+        parser.parseOperand(connections.emplace_back()))
+      return failure();
+    names.push_back(parser.getBuilder().getStringAttr(name));
+    return success();
+  };
+  if (parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Square, parsePort))
+    return failure();
+  ports = parser.getBuilder().getArrayAttr(names);
+  return success();
+}
+
+/// `CellOpInterface` verifies that `$ports` and `$connections` have the same
+/// length, and the printer only sees verified ops.
+static void printCellPorts(OpAsmPrinter &printer, Operation *,
+                           OperandRange connections, ArrayAttr ports) {
+  printer << '[';
+  llvm::interleaveComma(llvm::zip_equal(ports, connections), printer,
+                        [&](auto port) {
+                          printer.printAttribute(std::get<0>(port));
+                          printer << " = " << std::get<1>(port);
+                        });
+  printer << ']';
+}
+
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.cpp.inc"
 

@@ -19,16 +19,16 @@ hw.module @demo(in %a: i8, in %b: i8, in %c: i8, out y: i8) {
 // `hierarchy -check -auto-top` ran and marked the top module.
 // CHECK-LABEL: rtlil.module @"\\demo"
 // CHECK-SAME:    attributes [#rtlil.param<"\\top" 1 : i32>]
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\a"{{.*}}port_id = 1 {{.*}}port_input = true
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\b"{{.*}}port_id = 2 {{.*}}port_input = true
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\c"{{.*}}port_id = 3 {{.*}}port_input = true
-// CHECK-DAG: "rtlil.wire"() <{{{.*}}name = "\\y"{{.*}}port_id = 4 {{.*}}port_output = true
+// CHECK-DAG: wire "\\a" input port 1
+// CHECK-DAG: wire "\\b" input port 2
+// CHECK-DAG: wire "\\c" input port 3
+// CHECK-DAG: wire "\\y" output port 4
 
 // Cells come back with gate-level types the dialect has no op for, so they are
 // generic `rtlil.cell`s. `abc -g AND,OR,XOR` maps an 8-bit (a & b) | c onto one
 // AND and one OR per bit.
-// CHECK-DAG: type = "$_AND_"
-// CHECK-DAG: type = "$_OR_"
+// CHECK-DAG: cell "{{[^"]*}}" "$_AND_" [
+// CHECK-DAG: cell "{{[^"]*}}" "$_OR_" [
 
 // Those gates drive single bits of the 8-bit wires, so every port is a slice.
 // Without `rtlil.slice` this design could not be imported at all.

@@ -13,4 +13,4 @@ hw.module @demo(in %a: i8, in %b: i8, out y: i8) {
 }
 
 // CHECK-LABEL: rtlil.module @"\\demo"
-// CHECK: rtlil.wire
+// CHECK: wire "

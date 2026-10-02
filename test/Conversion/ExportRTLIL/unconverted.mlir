@@ -12,7 +12,7 @@
 // CHECK-NOT: 'leftovers_Class'
 
 rtlil.module @"\\converted" {
-  %w = "rtlil.wire"() <{name = "\\w", is_signed = false}> : () -> !rtlil<val[1]>
+  %w = rtlil.wire "\\w" : !rtlil<val[1]>
 }
 
 hw.module @unconverted(in %a: i8, out y: i8) {
