@@ -35,9 +35,6 @@
 namespace circt::rtlil {
 
 /// The wires of `module` flagged as ports, ordered by `port_id`.
-///
-/// A free function rather than a `ModuleOp` method because TableGen emits op
-/// classes alphabetically, leaving `WireOp` incomplete inside `ModuleOp`.
 llvm::SmallVector<WireOp> getPortWires(ModuleOp module);
 
 } // namespace circt::rtlil

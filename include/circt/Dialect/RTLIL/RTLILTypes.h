@@ -21,14 +21,9 @@
 
 namespace circt::rtlil {
 
-/// Whether `name` is a legal RTLIL identifier: non-empty, starting with `\`
-/// (public) or `$` (auto-generated), and containing no control character or
-/// space.
-///
-/// This mirrors what `RTLIL::IdString` asserts when Yosys interns a name
-/// (`kernel/rtlil.cc`, `really_insert`). Yosys reacts to a violation by ending
-/// the process, so the dialect has to be the one that reports it: anything that
-/// reaches the exporter must already be known good.
+/// Whether `name` is a valid RTLIL identifier: non-empty, starting with `\`
+/// (public) or `$` (generated), and without spaces or control characters.
+/// Yosys aborts on an invalid name, so the dialect has to reject it first.
 bool isValidIdentifier(llvm::StringRef name);
 
 } // namespace circt::rtlil

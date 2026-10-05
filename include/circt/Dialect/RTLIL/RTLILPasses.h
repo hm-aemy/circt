@@ -17,7 +17,7 @@
 namespace circt {
 namespace rtlil {
 
-/// Generate the code for registering passes.
+/// Pass declarations and registration.
 #define GEN_PASS_DECL
 #define GEN_PASS_REGISTRATION
 #include "circt/Dialect/RTLIL/RTLILPasses.h.inc"
