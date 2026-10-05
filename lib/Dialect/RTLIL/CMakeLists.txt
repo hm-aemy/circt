@@ -19,6 +19,4 @@ add_circt_dialect_library(CIRCTRTLIL
   MLIRDerivedAttributeOpInterface
 )
 
-if(CIRCT_YOSYS_LIB_ENABLED)
-  add_subdirectory(Transforms)
-endif()
+add_subdirectory(Transforms)

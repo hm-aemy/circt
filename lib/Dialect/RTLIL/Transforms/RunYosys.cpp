@@ -24,18 +24,22 @@
 //   4. Yosys' log is redirected while the script runs, so a passing test does
 //      not drown in banner text and `--verify-diagnostics` stays usable.
 //
+// Without libyosys the pass is still registered, but only reports an error.
+//
 //===----------------------------------------------------------------------===//
 
+#include "circt/Dialect/RTLIL/RTLILPasses.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
+
+#ifdef CIRCT_YOSYS_LIB_ENABLED
 #include "circt/Conversion/ExportRTLIL.h"
 #include "circt/Conversion/ImportRTLIL.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
-#include "circt/Dialect/RTLIL/RTLILPasses.h"
 #include "circt/Yosys/Yosys.h"
 
 #include "YosysScript.h"
 
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
@@ -50,6 +54,7 @@
 // Yosys headers last; everything stays explicitly `Yosys::`-qualified.
 #include "kernel/rtlil.h"
 #include "kernel/yosys.h"
+#endif
 
 namespace circt {
 namespace rtlil {
@@ -60,6 +65,23 @@ namespace rtlil {
 
 using namespace circt;
 using namespace mlir;
+
+namespace {
+struct RunYosysPass : public circt::rtlil::impl::RunYosysBase<RunYosysPass> {
+  using circt::rtlil::impl::RunYosysBase<RunYosysPass>::RunYosysBase;
+  void runOnOperation() override;
+};
+} // namespace
+
+#ifndef CIRCT_YOSYS_LIB_ENABLED
+
+void RunYosysPass::runOnOperation() {
+  getOperation().emitError(
+      "rtlil-run-yosys is not available: CIRCT was built without libyosys");
+  signalPassFailure();
+}
+
+#else
 
 /// Split a script into individual commands. Yosys' own `run_pass` takes one
 /// command at a time, and splitting here means a failing command can be named
@@ -103,13 +125,6 @@ static SmallVector<std::string> splitScript(StringRef script) {
   push(script.substr(start));
   return commands;
 }
-
-namespace {
-struct RunYosysPass : public circt::rtlil::impl::RunYosysBase<RunYosysPass> {
-  using circt::rtlil::impl::RunYosysBase<RunYosysPass>::RunYosysBase;
-  void runOnOperation() override;
-};
-} // namespace
 
 void RunYosysPass::runOnOperation() {
   mlir::ModuleOp module = getOperation();
@@ -171,3 +186,5 @@ void RunYosysPass::runOnOperation() {
   if (failed(circt::rtlil::importRTLIL(&design, module)))
     return signalPassFailure();
 }
+
+#endif // CIRCT_YOSYS_LIB_ENABLED

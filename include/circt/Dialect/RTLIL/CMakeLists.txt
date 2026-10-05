@@ -14,11 +14,6 @@ mlir_tablegen(RTLILAttributes.cpp.inc -gen-attrdef-defs -attrdefs-dialect=rtlil)
 add_public_tablegen_target(CIRCTRTLILAttributesIncGen)
 add_dependencies(circt-headers CIRCTRTLILAttributesIncGen)
 
-# Passes have their own tablegen file (see RTLILPasses.td for why). Generating
-# the declarations needs no Yosys, so this stays unconditional while the
-# CIRCTRTLILTransforms library is gated on CIRCT_YOSYS_LIB_ENABLED. Declarations
-# for passes that were not built go unused: `rtlil::registerPasses()` is only
-# called behind that guard.
 set(LLVM_TARGET_DEFINITIONS RTLILPasses.td)
 mlir_tablegen(RTLILPasses.h.inc -gen-pass-decls)
 add_public_tablegen_target(CIRCTRTLILTransformsIncGen)

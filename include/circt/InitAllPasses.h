@@ -35,6 +35,7 @@
 #include "circt/Dialect/Pipeline/PipelinePasses.h"
 #include "circt/Dialect/RTG/Transforms/RTGPassPipelines.h"
 #include "circt/Dialect/RTG/Transforms/RTGPasses.h"
+#include "circt/Dialect/RTLIL/RTLILPasses.h"
 #include "circt/Dialect/SSP/SSPPasses.h"
 #include "circt/Dialect/SV/SVPasses.h"
 #include "circt/Dialect/Seq/SeqPasses.h"
@@ -81,6 +82,7 @@ inline void registerAllPasses() {
   om::registerPasses();
   pipeline::registerPasses();
   rtg::registerRTGPasses();
+  rtlil::registerPasses();
   seq::registerPasses();
   sim::registerPasses();
   ssp::registerPasses();

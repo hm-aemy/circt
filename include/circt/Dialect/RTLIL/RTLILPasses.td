@@ -5,13 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// These passes need libyosys, so they live in their own tablegen file rather
-// than in `circt/Conversion/Passes.td`: the generated
-// `registerCIRCTConversionPasses()` names every pass unconditionally, which
-// would not link in a build configured without `CIRCT_YOSYS_LIB_ENABLED`.
-//
-//===----------------------------------------------------------------------===//
 
 #ifndef CIRCT_DIALECT_RTLIL_RTLILPASSES_TD
 #define CIRCT_DIALECT_RTLIL_RTLILPASSES_TD
@@ -19,24 +12,20 @@
 include "mlir/Pass/PassBase.td"
 
 def RunYosys : Pass<"rtlil-run-yosys", "mlir::ModuleOp"> {
-  let summary = "Hand the rtlil.modules to Yosys, run a script, read the result back";
+  let summary = "Run a Yosys script over the `rtlil.module`s";
   let description = [{
-    Translates every `rtlil.module` in the top-level module into an in-process
-    `RTLIL::Design`, runs `script` over it with Yosys' own pass manager, and
-    replaces the `rtlil.module`s with the result. No file is written and the
-    `yosys` binary is never spawned.
+    Exports every `rtlil.module` to an in-process `RTLIL::Design`, runs `script`
+    on it, and replaces the `rtlil.module`s with the result. No files or
+    `yosys` processes are involved.
 
-    The design is replaced rather than updated: a Yosys script adds, deletes,
-    renames and re-parameterises modules, so there is no meaningful incremental
-    mapping back onto the ops that went in. Names and source locations are what
-    survive: `\`-prefixed identifiers are carried through `opt`, `techmap` and
-    `abc` untouched, and locations travel as RTLIL `src` attributes.
+    The modules are replaced rather than updated, since a script can add,
+    remove and rename them. Other ops in the top-level module are left alone,
+    so a partially converted design still works.
 
-    Anything in the top-level module that is not an `rtlil.module` is left
-    alone, so a partially converted design still works.
+    Yosys is not thread safe, so all instances of this pass run serially.
 
-    Yosys keeps global state and is not thread safe, so this pass serialises
-    itself against any other instance.
+    Requires CIRCT to be built with libyosys (`CIRCT_YOSYS_LIB_ENABLED`);
+    otherwise the pass fails with an error.
   }];
 
   let options = [
