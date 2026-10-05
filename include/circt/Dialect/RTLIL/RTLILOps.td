@@ -33,111 +33,10 @@ include "circt/Dialect/RTLIL/RTLILOpInterfaces.td"
 class RTLILOp<string mnemonic, list<Trait> traits = []> :
         Op<RTLILDialect, mnemonic, traits>;
 
-
-//===----------------------------------------------------------------------===//
-// Wire related operations and primitives
-//===----------------------------------------------------------------------===//
-
-def ConstOp : MValueExpander, RTLILOp<"const",
-  [Pure, AllMatch<
-    ["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"],
-    "bitwidth matches">
-  ]> {
-  let summary = "A constant run of bits";
-  let description = [{
-    Materializes one `RTLIL::Const`: the constant chunks of a SigSpec, and the
-    right-hand side of a constant connection. Bits are written most significant
-    first, so `rtlil.const <"1010"> : !rtlil<val[4]>` is 10.
-  }];
-  let arguments = (ins ConstAttr:$value);
-  let results = (outs MValueType:$result);
-  let assemblyFormat = "$value attr-dict `:` type($result)";
-}
-
-//===----------------------------------------------------------------------===//
-// Signal spec
-//===----------------------------------------------------------------------===//
-//
-// An `RTLIL::SigSpec` is a bit vector assembled from chunks, where each chunk is
-// either a slice of a wire or a run of constant bits. A design that has been
-// through `opt`, `techmap` or `abc` is full of them, a `$_AND_` cell driving
-// one bit of a wide wire being the typical case, so the import cannot represent
-// cell ports as whole wires alone.
-//
-// These two ops are that representation. A chunk that happens to cover a whole
-// wire, or a spec of exactly one chunk, stays bare: `rtlil.slice` and
-// `rtlil.concat` appear only where a SigSpec genuinely needs them.
-
-def SliceOp : RTLILOp<"slice", [Pure]> {
-  let summary = "A contiguous run of bits from a value";
-  let description = [{
-    `$offset` counts from bit 0 of `$input`, *not* from the wire's
-    `start_offset`: that attribute is Verilog declaration cosmetics and is
-    carried on `rtlil.wire` separately. The number of bits taken is the width of
-    the result.
-  }];
-  let arguments = (ins MValueType:$input, I32Attr:$offset);
-  let results = (outs MValueType:$result);
-  let hasVerifier = 1;
-}
-
-def ConcatOp : RTLILOp<"concat", [Pure]> {
-  let summary = "Several values joined into a wider one";
-  let description = [{
-    Operands are ordered **least significant first**, matching
-    `RTLIL::SigSpec::chunks()` and the bit order of `rtlil.const`. Note this is
-    the opposite of RTLIL's textual `{ msb ... lsb }` syntax.
-  }];
-  let arguments = (ins Variadic<MValueType>:$inputs);
-  let results = (outs MValueType:$result);
-  let hasVerifier = 1;
-}
-
-// `port_id` and `start_offset` are `I32Attr` because `RTLIL::Wire` declares
-// both as plain `int`.
-def WireOp : RTLILOp<"wire"> {
-  let summary = "A named RTLIL wire, and the value its bits carry";
-  let description = [{
-    Models one `RTLIL::Wire`. The name keeps the RTLIL sigil, as
-    `RTLIL::IdString` does: `\a` for a source name, `$1` for one Yosys
-    invented. That sigil is what tells the two apart.
-
-    `rtlil.module` checks that the `port_id`s are exactly 1..N, which
-    `fixup_ports()` would otherwise silently impose. `start_offset` and `upto`
-    are Verilog declaration cosmetics (`wire [7:4]`, `wire [0:7]`) carried for
-    the backends; they do not affect bit numbering here.
-  }];
-  // The flags are `UnitAttr`s so that the assembly format can spell them as
-  // bare keywords, the way RTLIL's own `wire width 8 signed input 1 \a` does.
-  let arguments = (ins StrAttr:$name
-                       ,UnitAttr:$is_signed
-                       ,DefaultValuedAttr<I32Attr, "0">:$port_id
-                       ,DefaultValuedAttr<I32Attr, "0">:$start_offset
-                       ,UnitAttr:$port_input
-                       ,UnitAttr:$port_output
-                       ,UnitAttr:$upto
-                       // The RTLIL `attributes` dict. `src` is not stored here:
-                       // it becomes the op's Location on import and is derived
-                       // back from it on export, so keeping it would duplicate.
-                       ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
-  );
-  DerivedAttr width = DerivedAttr<"::mlir::IntegerAttr", [{
-        return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth());
-                          }], "getWidth()">;
-  let results = (outs MValueType:$result);
-  let assemblyFormat = [{
-    $name (`signed` $is_signed^)? (`input` $port_input^)?
-    (`output` $port_output^)? (`port` $port_id^)? (`offset` $start_offset^)?
-    (`upto` $upto^)? (`attributes` $rtlil_attributes^)? attr-dict
-    `:` type($result)
-  }];
-}
-
 //===----------------------------------------------------------------------===//
 // Structure
 //===----------------------------------------------------------------------===//
 
-// Defined after `WireOp` so that `getPortWires()` can name it by value.
 def ModuleOp : RTLILOp<"module", [
     HasParent<"::mlir::ModuleOp">,
     Symbol,
@@ -148,19 +47,13 @@ def ModuleOp : RTLILOp<"module", [
     RegionKindInterface,
     OpAsmOpInterface
   ]> {
-  let summary = "A named RTLIL netlist of wires and cells";
+  let summary = "An RTLIL netlist of wires and cells";
   let description = [{
-    Models one `RTLIL::Module`. The symbol name is the RTLIL identifier
-    including its sigil, so a module Yosys calls `\demo` is `rtlil.module
-    @"\\demo"` here. See `rtlil.wire` for why the sigil is part of the name.
+    Equivalent of `RTLIL::Module`.
 
-    Ports are not listed separately: in RTLIL a port *is* a wire with a non-zero
-    `port_id`, and `RTLIL::Module::fixup_ports()` derives the port list from
-    those flags. Keeping a second list here would be a second source of truth
-    that any Yosys pass could desynchronise.
-
-    The body is a *graph* region. RTLIL is a netlist rather than straight-line
-    code, so a cell may drive a wire declared below it.
+    Collection of all elements as a graph region.
+    Ports are not defined as arguments, but are marked by wires with a
+    non-zero `port_id`.
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
@@ -173,9 +66,7 @@ def ModuleOp : RTLILOp<"module", [
     (`attributes` $rtlil_attributes^)? attr-dict-with-keyword $body
   }];
 
-  // The auto-generated builders leave the region blockless, which every
-  // `getBodyBlock()` would then walk off the end of. Replace them with builders
-  // that create the single block.
+  // Custom builders which create a single block.
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "::mlir::StringAttr":$symName,
@@ -199,9 +90,8 @@ def ModuleOp : RTLILOp<"module", [
     ::mlir::Block *getBodyBlock() { return &getBody().front(); }
 
     // The port wires are reached through the free function
-    // `circt::rtlil::getPortWires(ModuleOp)` rather than a member: TableGen
-    // emits op classes in alphabetical order, so `WireOp` is still incomplete
-    // here and `SmallVector<WireOp>` cannot be named.
+    // `circt::rtlil::getPortWires(ModuleOp)`.
+    // `SmallVector<WireOp>` is not yet available for the definition.
   }];
 
   // The body checks read the nested ops' attributes, so they run in
@@ -211,20 +101,115 @@ def ModuleOp : RTLILOp<"module", [
 }
 
 //===----------------------------------------------------------------------===//
-// Cell related operations
+// Wires and connections
 //===----------------------------------------------------------------------===//
 
+def WireOp : RTLILOp<"wire"> {
+  let summary = "A named RTLIL wire, and the value its bits carry";
+  let description = [{
+    Equivalent of `RTLIL::Wire`.
+    Keeps the convention of Yosys for the names: `\a` for explicitly named and
+    `$1` for constructed wires.
+
+    `rtlil.module` checks that the `port_id`s are exactly 1..N, which
+    `fixup_ports()` would otherwise silently impose. `start_offset` and `upto`
+    are carried to the backends for convenience (`wire [7:4]`, `wire [0:7]`);
+    they do not affect bit numbering here.
+  }];
+  // Flags are `UnitAttr`s for assembly format bare keywords.
+  // `port_id` and `start_offset` are `I32Attr` because `RTLIL::Wire` declares
+  // both as plain `int`.
+  let arguments = (ins StrAttr:$name
+                       ,UnitAttr:$is_signed
+                       ,DefaultValuedAttr<I32Attr, "0">:$port_id
+                       ,DefaultValuedAttr<I32Attr, "0">:$start_offset
+                       ,UnitAttr:$port_input
+                       ,UnitAttr:$port_output
+                       ,UnitAttr:$upto
+                       // The RTLIL `attributes` dict.
+                       ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
+                       // `src` is derived on export.
+  );
+  DerivedAttr width = DerivedAttr<"::mlir::IntegerAttr", [{
+        return mlir::IntegerAttr::get(mlir::IntegerType::get(getContext(), 32), llvm::cast<rtlil::MValueType>(this->getResult().getType()).getWidth());
+                          }], "getWidth()">;
+  let results = (outs MValueType:$result);
+  let assemblyFormat = [{
+    $name (`signed` $is_signed^)? (`input` $port_input^)?
+    (`output` $port_output^)? (`port` $port_id^)? (`offset` $start_offset^)?
+    (`upto` $upto^)? (`attributes` $rtlil_attributes^)? attr-dict
+    `:` type($result)
+  }];
+}
+
+def WConnectionOp : RTLILOp<"wconnection"> {
+  let summary = "One entry of a module's connection list";
+  let description = [{
+    Represents one `RTLIL::SigSig` in `RTLIL::Module::connections()`.
+    `$lhs` is driven by `$rhs` and they must have the same width.
+  }];
+  let arguments = (ins MValueType:$lhs, MValueType:$rhs);
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Signal spec
+//===----------------------------------------------------------------------===//
+//
+// An `RTLIL::SigSpec` is a bit vector of chunks (slice of a wire or
+// constants).
+
+def ConstOp : MValueExpander, RTLILOp<"const",
+  [Pure, AllMatch<
+    ["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"],
+    "bitwidth matches">
+  ]> {
+  let summary = "A constant run of bits";
+  let description = [{
+    Equivalent of `RTLIL::Const`. Bits are written most significant first, so
+    `rtlil.const <"1010"> : !rtlil<val[4]>` is 10.
+  }];
+  let arguments = (ins ConstAttr:$value);
+  let results = (outs MValueType:$result);
+  let assemblyFormat = "$value attr-dict `:` type($result)";
+}
+
+def SliceOp : RTLILOp<"slice", [Pure]> {
+  let summary = "A contiguous run of bits from a value";
+  let description = [{
+    A slice from `$input` starting at `$offset` with the length taken from the
+    width of `$result`.
+  }];
+  let arguments = (ins MValueType:$input, I32Attr:$offset);
+  let results = (outs MValueType:$result);
+  let hasVerifier = 1;
+}
+
+def ConcatOp : RTLILOp<"concat", [Pure]> {
+  let summary = "Several values joined into a wider one";
+  let description = [{
+    Concatenation of `$inputs` ordered least significant first, following
+    `RTLIL::SigSpec::chunks()`.
+    Note this is the opposite of RTLIL's textual `{ msb ... lsb }` syntax.
+  }];
+  let arguments = (ins Variadic<MValueType>:$inputs);
+  let results = (outs MValueType:$result);
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Generic cells
+//===----------------------------------------------------------------------===//
 
 def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
-  let summary = "A cell of any type, with its ports and parameters spelled out";
+  let summary = "A cell of any type, with its ports and parameters";
   let description = [{
-    The generic form of an `RTLIL::Cell`, and the fallback for cell types with
-    no dedicated op. `$ports` names the port each `$connections` operand
-    attaches to, in order; `$parameters` is the parameter dict verbatim.
+    Equivalent of `RTLIL::Cell`. Can represent any cell type, if no dedicated
+    op is defined.
+    `$ports` names the port each `$connections` operand attaches to, in order.
+    `$parameters` is the parameter dict verbatim.
 
-    Prefer `rtlil.instance` when the type names another `rtlil.module`, and the
-    typed cell ops when they fit: those derive `$parameters` from the width
-    instead of storing a dict that could disagree with it.
+    The dialect defines specialized ops, which should be preferred.
   }];
   let arguments = (ins StrAttr:$name
                        ,StrAttr:$type
@@ -240,16 +225,40 @@ def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
   }];
 }
 
+def InstanceOp : RTLILOp<"instance", [
+    DeclareOpInterfaceMethods<CellOpInterface>,
+    DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "A cell pointing to another module";
+  let description = [{
+    Equivalent of `rtlil.cell` for the case where the cell type resolves to an
+    `rtlil.module`.
+    The reference can be an MLIR symbol. Invalid references result in a
+    verifier error.
+  }];
+  let arguments = (ins StrAttr:$name,
+                       FlatSymbolRefAttr:$type,
+                       Variadic<MValueType>:$connections,
+                       StrArrayAttr:$ports,
+                       ParamArrayAttr:$parameters,
+                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
+  );
+}
+
+//===----------------------------------------------------------------------===//
+// Typed cells
+//===----------------------------------------------------------------------===//
+
 class FixedOperands<int n> : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;
 
+class FixedWidths<list<string> widths>
+    : MValueExpander, TraitList<
+       !foreach(idx, !range(widths), AllMatch<["::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
 
-class FixedWidths<list<string> widths> : MValueExpander, TraitList<!foreach(idx, !range(widths), AllMatch<["::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
-
-// A cell type with a dedicated op. `ports` and `widths` line up with
-// `$connections`; `extraArgs` is whatever the family adds between `$width` and
-// `$type`, such as a signedness flag. `$type` and `$ports` are fixed by the op,
-// so the assembly format leaves them to `attr-dict`, which elides them at their
-// defaults.
+// A cell type with a dedicated op.
+// `ports` and `widths` line up with `$connections`.
+// `extraArgs` for arguments between `$width` and `$type`, such as a signedness
+// flag.
+// `$type` and `$ports` are fixed by the op.
 class TypedCellOp<string t, list<string> ports, list<string> widths,
                   dag extraArgs = (ins)>
     : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>,
@@ -266,6 +275,8 @@ class TypedCellOp<string t, list<string> ports, list<string> widths,
     $name `(` $connections `)` attr-dict `:` type($connections)
   }];
 }
+
+// Binary arithmetic and bitwise cells
 
 class BinOp<string t>
     : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "$width"],
@@ -288,10 +299,12 @@ def XorOp : BinOp<"xor">;
 def AddOp : BinOp<"add">;
 def SubOp : BinOp<"sub">;
 def MulOp : BinOp<"mul">;
-// Truncating, like Verilog's `/` and `%`. Yosys' flooring pair is spelled
-// `$divfloor` and `$modfloor`; these are not those cells.
+// Truncating ops for Verilog's `/` and `%`. Not Yosys' `$divfloor` and
+// `$modfloor`.
 def DivOp : BinOp<"div">;
 def ModOp : BinOp<"mod">;
+
+// Shift cells
 
 class ShiftOp<string t>
     : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "$width"],
@@ -310,33 +323,10 @@ class ShiftOp<string t>
 
 def ShlOp : ShiftOp<"shl">;
 def ShrOp : ShiftOp<"shr">;
-// `$sshr` shifts the sign bit in only while A_SIGNED is set; with it clear it
-// is `$shr` under another name.
+// Shift sign bit with A_SIGNED set.
 def SShrOp : ShiftOp<"sshr">;
 
-class ReduceOp<string t>
-    : TypedCellOp<t, ["A", "Y"], ["$width", "1"], (ins I32Attr:$aSigned)> {
-  let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
-  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
-                            return ::circt::rtlil::createParamArrayAttr(getContext(), {
-                              {"\\A_SIGNED", 32, getASigned()},
-                              {"\\A_WIDTH", 32, getWidth()},
-                              {"\\Y_WIDTH", 32, 1},
-                            });
-                          }], "getParameters()">;
-}
-
-def ReduceXorOp : ReduceOp<"reduce_xor">;
-
-def MuxOp : TypedCellOp<"mux", ["A", "B", "S", "Y"],
-                        ["$width", "$width", "1", "$width"]> {
-  let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
-  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
-                            return ::circt::rtlil::createParamArrayAttr(getContext(), {
-                              {"\\WIDTH", 32, getWidth()},
-                            });
-                          }], "getParameters()">;
-}
+// Comparison cells
 
 class CmpOp<string t>
     : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "1"],
@@ -353,17 +343,45 @@ class CmpOp<string t>
                           }], "getParameters()">;
 }
 
-def GTOp : CmpOp<"gt">;
+def LTOp : CmpOp<"lt">;
+def LEOp : CmpOp<"le">;
 def EQOp : CmpOp<"eq">;
 def NEOp : CmpOp<"ne">;
-def GEOp : CmpOp<"ge">;
-def LEOp : CmpOp<"le">;
-def LTOp : CmpOp<"lt">;
-
-// `$eqx` and `$nex` are SystemVerilog's `===` and `!==`: they compare x and z
-// as values, so unlike `$eq`/`$ne` they always return a defined 0 or 1.
+// `$eqx` and `$nex` are SystemVerilog's `===` and `!==`.
 def EQXOp : CmpOp<"eqx">;
 def NEXOp : CmpOp<"nex">;
+def GEOp : CmpOp<"ge">;
+def GTOp : CmpOp<"gt">;
+
+// Reduction cells
+
+class ReduceOp<string t>
+    : TypedCellOp<t, ["A", "Y"], ["$width", "1"], (ins I32Attr:$aSigned)> {
+  let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
+  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
+                            return ::circt::rtlil::createParamArrayAttr(getContext(), {
+                              {"\\A_SIGNED", 32, getASigned()},
+                              {"\\A_WIDTH", 32, getWidth()},
+                              {"\\Y_WIDTH", 32, 1},
+                            });
+                          }], "getParameters()">;
+}
+
+def ReduceXorOp : ReduceOp<"reduce_xor">;
+
+// Multiplexer cells
+
+def MuxOp : TypedCellOp<"mux", ["A", "B", "S", "Y"],
+                        ["$width", "$width", "1", "$width"]> {
+  let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
+  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
+                            return ::circt::rtlil::createParamArrayAttr(getContext(), {
+                              {"\\WIDTH", 32, getWidth()},
+                            });
+                          }], "getParameters()">;
+}
+
+// Flip-flop cells
 
 def DFFOp : TypedCellOp<"dff", ["CLK", "D", "Q"], ["1", "$width", "$width"]> {
   let summary = "The RTLIL `dff` cell: Q takes D on the rising CLK edge";
@@ -385,35 +403,6 @@ def ALDFFOp : TypedCellOp<"aldff", ["CLK", "D", "ALOAD", "AD", "Q"],
                           {"\\ALOAD_POLARITY", 32, 1},
                         });
                       }], "getParameters()">;
-}
-
-def InstanceOp : RTLILOp<"instance", [
-    DeclareOpInterfaceMethods<CellOpInterface>,
-    DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = "A cell whose type names another module in the design";
-  let description = [{
-    The RTLIL-level equivalent of `rtlil.cell` for the case where the cell type
-    resolves to an `rtlil.module`, so the reference can be a real MLIR symbol
-    and a dangling callee is a verifier error rather than something the exporter
-    discovers.
-  }];
-  let arguments = (ins StrAttr:$name,
-                       FlatSymbolRefAttr:$type,
-                       Variadic<MValueType>:$connections,
-                       StrArrayAttr:$ports,
-                       ParamArrayAttr:$parameters,
-                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
-  );
-}
-
-def WConnectionOp : RTLILOp<"wconnection"> {
-  let summary = "One entry of a module's connection list";
-  let description = [{
-    Represents one `RTLIL::SigSig` in `RTLIL::Module::connections()`.
-    `$lhs` is driven by `$rhs` and they must have the same width.
-  }];
-  let arguments = (ins MValueType:$lhs, MValueType:$rhs);
-  let hasVerifier = 1;
 }
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILOPS_TD
