@@ -22,15 +22,13 @@ include "circt/Dialect/RTLIL/RTLILEnums.td"
 
 def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
   let mnemonic = "param";
-  let summary = "One `RTLIL::IdString` and the `RTLIL::Const` it names";
+  let summary = "`RTLIL::IdString` naming an `RTLIL::Const`";
   let description = [{
     One entry of the `dict<RTLIL::IdString, RTLIL::Const>` that
     `RTLIL::AttrObject` uses for attributes and `RTLIL::Cell` for parameters.
 
-    `$value` is deliberately a bare `Attribute` rather than an `IntegerAttr`: an
-    `RTLIL::Const` is either a string or a bit vector of arbitrary width that
-    may contain `x` and `z`, and Yosys hands back plenty of both (`$lut` masks,
-    `$mem` INIT, string parameters). It holds one of:
+    `$value` is a bare `Attribute` so it can hold strings as well as bit vectors
+    of any width that may contain `x` and `z`. It holds one of:
 
       * `IntegerAttr`: the convenient case, and what the derived `parameters`
         attributes below construct;
@@ -45,9 +43,7 @@ def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
                     "::mlir::StringAttr":$name,
                     "::mlir::Attribute":$value,
                     OptionalParameter<"std::optional<uint16_t>">:$flags);
-  // Explicitly delimited: without the angle brackets the printed form is
-  // `#rtlil.param "\NAME" 4 : i32`, which is ambiguous inside the parameter
-  // array.
+  // Angle brackets make it unambiguous inside the parameter array.
   let assemblyFormat = "`<` $name $value (`flags` $flags^)? `>`";
   let builders = [
     AttrBuilder<(ins
@@ -66,9 +62,8 @@ def ParamArrayAttr
   let constBuilderCall = "::circt::rtlil::createParamArrayAttr($_builder.getContext(), $0)";
   let summary = "A dict of `RTLIL::Const`, keyed by `RTLIL::IdString`";
   let description = [{
-    The parameter dict of a cell and the attribute dict of anything that
-    carries one. Order is the order Yosys handed the entries over; nothing
-    here depends on it.
+    Storage for the parameters of a cell or the attributes of any object that
+    carries them.
   }];
 }
 
@@ -80,18 +75,16 @@ def ConstAttr : AttrDef<RTLILDialect, "Const"> {
   let mnemonic = "const";
   let summary = "A constant multi-valued bit vector";
   let description = [{
-    The general form of an `RTLIL::Const`, written as a bit string over the
-    alphabet of `RTLIL::Const::as_string()`: `0`, `1`, `x`, `z` and `-` (`Sa`).
+    An `RTLIL::Const` as a bit string of `RTLIL::State` values.
 
-    The string is most significant bit first, as RTLIL's own `4'1010` reads.
-    `$bits` is stored the other way round, matching `RTLIL::Const::to_bits()`
-    and the operand order of `rtlil.concat`.
+    The string is most significant bit first. `$bits` is stored the other way
+    round, matching `RTLIL::Const::to_bits()` and the operand order of
+    `rtlil.concat`.
   }];
   let parameters = (ins ArrayRefParameter<"::circt::rtlil::StateEnum">:$bits);
   let hasCustomAssemblyFormat = 1;
   let extraClassDeclaration = [{
-    /// Named to match `RTLIL::Const::size()`, and used by the `rtlil.const`
-    /// bitwidth trait.
+    /// Matches `RTLIL::Const::size()`.
     size_t size() const { return getBits().size(); }
 
     /// The printed form of the bits, most significant first.
