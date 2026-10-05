@@ -159,9 +159,9 @@ def WConnectionOp : RTLILOp<"wconnection"> {
 // An `RTLIL::SigSpec` is a bit vector of chunks (slice of a wire or
 // constants).
 
-def ConstOp : MValueExpander, RTLILOp<"const",
+def ConstOp : RTLILOp<"const",
   [Pure, AllMatch<
-    ["llvm::cast<mlir::TypedValue<" # typeName # ">>($result).getType().getWidth()", "$value.size()"],
+    ["::llvm::cast<::mlir::TypedValue<::circt::rtlil::MValueType>>($result).getType().getWidth()", "$value.size()"],
     "bitwidth matches">
   ]> {
   let summary = "A constant run of bits";
@@ -251,8 +251,8 @@ def InstanceOp : RTLILOp<"instance", [
 class FixedOperands<int n> : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;
 
 class FixedWidths<list<string> widths>
-    : MValueExpander, TraitList<
-       !foreach(idx, !range(widths), AllMatch<["::llvm::cast<"# typeName #">(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
+    : TraitList<
+       !foreach(idx, !range(widths), AllMatch<["::llvm::cast<::circt::rtlil::MValueType>(getOperand(" # idx # ").getType()).getWidth()", "" # widths[idx]], "input " # idx # " width is " # widths[idx]>)>;
 
 // A cell type with a dedicated op.
 // `ports` and `widths` line up with `$connections`.

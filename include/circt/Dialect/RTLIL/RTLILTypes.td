@@ -16,24 +16,12 @@ def MValueType : TypeDef<RTLILDialect, "MValue"> {
   let mnemonic = "val";
   let summary = "A fixed-width sequence of `RTLIL::State` bits";
   let description = [{
-    The value carried by every RTLIL wire and cell port: `$width` bits, each of
-    which is one of the five `RTLIL::State` cases rather than a plain 0/1.
-
-    The width is a plain `unsigned`, mirroring `RTLIL::Wire::width` and
-    `RTLIL::SigChunk::width`, which are both `int`. Unlike `hw::IntType` there
-    is no parameterized case to represent: Yosys keeps parameters in the
-    module's `avail_parameters` and the cell's parameter dict, and `derive()`
-    has substituted them by the time any wire exists.
+    The value of an RTLIL wire or cell port: `$width` bits, each one of the
+    five `RTLIL::State` values. The width is always concrete, since Yosys
+    resolves parameters before wires exist.
   }];
   let parameters = (ins "unsigned":$width);
-  let typeName = "rtlil.val";
   let assemblyFormat = "`[` $width `]`";
-}
-
-// Gives an op the C++ name of `MValueType`, for use inside trait predicates:
-// those are plain strings and cannot reach the type through the accessors.
-class MValueExpander {
-  string typeName = MValueType.cppType;
 }
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILTYPES_TD
