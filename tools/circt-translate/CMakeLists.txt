@@ -5,9 +5,6 @@ if(CIRCT_SLANG_FRONTEND_ENABLED)
   add_compile_definitions(CIRCT_SLANG_FRONTEND_ENABLED)
 endif()
 
-# The ImportRTLIL/ExportRTLIL headers name `RTLIL::Design` through a forward
-# declaration and pull in no Yosys header, so this directory needs the define
-# but not `YosysCompilerOptions`.
 if(CIRCT_YOSYS_LIB_ENABLED)
   add_compile_definitions(CIRCT_YOSYS_LIB_ENABLED)
 endif()

@@ -36,9 +36,6 @@ int main(int argc, char **argv) {
 #ifdef CIRCT_SLANG_FRONTEND_ENABLED
   circt::registerFromVerilogTranslation();
 #endif
-  // Registered here rather than in `InitAllTranslations.h`, which has no
-  // conditional registrations: these only exist when CIRCT was built against
-  // libyosys. Same arrangement as ImportVerilog and slang.
 #ifdef CIRCT_YOSYS_LIB_ENABLED
   circt::rtlil::registerImportRTLILTranslation();
   circt::rtlil::registerExportRTLILTranslation();
