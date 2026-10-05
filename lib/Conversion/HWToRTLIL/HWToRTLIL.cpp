@@ -447,9 +447,9 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
     // monotonic in the output index, so the output port wires appear here in
     // output order.
     llvm::SmallVector<rtlil::WireOp> outputPorts;
-    for (auto wire : rtlil::getPortWires(module))
-      if (wire.getPortOutput())
-        outputPorts.push_back(wire);
+    module.getPortWires(outputPorts);
+    llvm::erase_if(outputPorts,
+                   [](rtlil::WireOp wire) { return !wire.getPortOutput(); });
 
     auto outputs = adaptor.getOutputs();
     if (outputPorts.size() != outputs.size())

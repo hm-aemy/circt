@@ -32,11 +32,4 @@
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.h.inc"
 
-namespace circt::rtlil {
-
-/// The wires of `module` flagged as ports, ordered by `port_id`.
-llvm::SmallVector<WireOp> getPortWires(ModuleOp module);
-
-} // namespace circt::rtlil
-
 #endif // CIRCT_DIALECT_RTLIL_RTLILOPS_H

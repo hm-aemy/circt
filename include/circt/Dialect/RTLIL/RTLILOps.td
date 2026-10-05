@@ -89,9 +89,8 @@ def ModuleOp : RTLILOp<"module", [
 
     ::mlir::Block *getBodyBlock() { return &getBody().front(); }
 
-    // The port wires are reached through the free function
-    // `circt::rtlil::getPortWires(ModuleOp)`.
-    // `SmallVector<WireOp>` is not yet available for the definition.
+    /// Fills `ports` with the wires flagged as ports, ordered by `port_id`.
+    void getPortWires(::llvm::SmallVectorImpl<WireOp> &ports);
   }];
 
   // The body checks read the nested ops' attributes, so they run in

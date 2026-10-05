@@ -150,6 +150,16 @@ LogicalResult rtlil::ModuleOp::verifyRegions() {
   return success();
 }
 
+void rtlil::ModuleOp::getPortWires(SmallVectorImpl<WireOp> &ports) {
+  ports.clear();
+  for (auto wire : getBodyBlock()->getOps<WireOp>())
+    if (wire.getPortId() != 0)
+      ports.push_back(wire);
+  llvm::sort(ports, [](WireOp lhs, WireOp rhs) {
+    return lhs.getPortId() < rhs.getPortId();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // SliceOp / ConcatOp
 //===----------------------------------------------------------------------===//
@@ -208,8 +218,10 @@ LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // Only the ports this instance names: a port left out is undriven, which
   // RTLIL allows. `CellOpInterface` has checked that `$ports` and
   // `$connections` line up, so the zip is safe.
+  SmallVector<WireOp> calleePortWires;
+  callee.getPortWires(calleePortWires);
   llvm::SmallDenseMap<StringRef, WireOp> calleePorts;
-  for (WireOp port : getPortWires(callee))
+  for (WireOp port : calleePortWires)
     calleePorts.try_emplace(port.getName(), port);
 
   for (auto [port, connection] : llvm::zip(getPorts(), getConnections())) {
@@ -238,15 +250,4 @@ LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
              << "port declared here";
   }
   return success();
-}
-
-SmallVector<WireOp> rtlil::getPortWires(rtlil::ModuleOp module) {
-  SmallVector<WireOp> ports;
-  for (auto wire : module.getBodyBlock()->getOps<WireOp>())
-    if (wire.getPortId() != 0)
-      ports.push_back(wire);
-  llvm::sort(ports, [](WireOp lhs, WireOp rhs) {
-    return lhs.getPortId() < rhs.getPortId();
-  });
-  return ports;
 }
