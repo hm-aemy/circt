@@ -13,12 +13,11 @@ include "mlir/IR/OpBase.td"
 
 def CellOpInterface : OpInterface<"CellOpInterface"> {
   let description = [{
-    A common view of `RTLIL::Cell`, so that any RTLIL cell op can be walked
-    without knowing which one it is. Implemented by `rtlil.cell`, the typed
-    cell ops and `rtlil.instance`.
+    A common view of `RTLIL::Cell`, implemented by `rtlil.cell`,
+    `rtlil.instance` and the typed cell ops.
 
-    A port and the connection it names share an index, which the interface
-    verifier enforces.
+    The verifier checks that ports and connections line up by index, and that
+    each port is a valid RTLIL identifier named at most once.
   }];
   let cppNamespace = "::circt::rtlil";
   let verify = [{
@@ -26,33 +25,32 @@ def CellOpInterface : OpInterface<"CellOpInterface"> {
   }];
   let methods = [
     InterfaceMethod<[{
-      Gets the name of the cell op.
+      Returns the cell name.
     }], "::llvm::StringRef", "getCellName", (ins),
     /*methodBody*/ "",
     /*defaultImpl*/ [{
       return $_op.getName();
     }]>,
     InterfaceMethod<[{
-      Gets the type of the cell op. For `rtlil.instance` this is the name of
-      the module it refers to.
+      Returns the cell type, which for `rtlil.instance` is the module name.
     }], "::llvm::StringRef", "getCellType", (ins),
     "", [{
       return $_op.getType();
     }]>,
     InterfaceMethod<[{
-      Gets the connections of the cell op.
+      Returns the connections, index-parallel to the ports.
     }], "::mlir::OperandRange", "getCellConnections", (ins),
     "", [{
       return $_op.getConnections();
     }]>,
     InterfaceMethod<[{
-      Gets the ports of the cell op.
+      Returns the port names.
     }], "::mlir::ArrayAttr", "getCellPorts", (ins),
     "", [{
       return $_op.getPorts();
     }]>,
     InterfaceMethod<[{
-      Gets the parameters of the cell op.
+      Returns the parameters.
     }], "::mlir::ArrayAttr", "getCellParameters", (ins),
     "", [{
       return $_op.getParameters();
