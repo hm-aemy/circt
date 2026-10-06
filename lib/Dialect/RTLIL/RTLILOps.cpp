@@ -20,9 +20,9 @@ using namespace rtlil;
 // Custom directives
 //===----------------------------------------------------------------------===//
 
-/// The connections of a cell, each next to the port it attaches to:
-/// `["\\A" = %a, "\\Y" = %y]`. `$ports` and `$connections` are parallel
-/// arrays, which the generic form leaves the reader to line up by position.
+/// Cells have `$ports` which are attached to `$connections`.
+/// Each is an array where the position maps both together.
+/// For example: `["\\A" = %a, "\\Y" = %y]`.
 static ParseResult
 parseCellPorts(OpAsmParser &parser,
                SmallVectorImpl<OpAsmParser::UnresolvedOperand> &connections,
@@ -42,8 +42,8 @@ parseCellPorts(OpAsmParser &parser,
   return success();
 }
 
-/// `CellOpInterface` verifies that `$ports` and `$connections` have the same
-/// length, and the printer only sees verified ops.
+/// Print the combined `$ports` and `$connections`.
+/// Verifier of `CellOpInterface` ensure equal length.
 static void printCellPorts(OpAsmPrinter &printer, Operation *,
                            OperandRange connections, ArrayAttr ports) {
   printer << '[';
@@ -75,9 +75,7 @@ void rtlil::ModuleOp::build(OpBuilder &builder, OperationState &result,
   result.addRegion()->emplaceBlock();
 }
 
-/// The RTLIL name an op inside a module body claims, or nullopt for ops that
-/// claim none. Wires and cells share one namespace in `RTLIL::Module`, so they
-/// are collected together.
+/// Wire and Cell operations names share the namespace.
 static std::optional<StringRef> getDeclaredName(Operation *op) {
   if (auto wire = dyn_cast<WireOp>(op))
     return wire.getName();
@@ -91,41 +89,39 @@ LogicalResult rtlil::ModuleOp::verify() {
 }
 
 LogicalResult rtlil::ModuleOp::verifyRegions() {
-  // Wires and cells share one Yosys namespace; a duplicate corrupts the design.
+  // Store every wire and cell opertions to reject duplicated names.
   DenseMap<StringRef, Operation *> declared;
-  // `port_id` is 1-based and must be dense: `fixup_ports()` silently renumbers
-  // otherwise, and export/import stop round-tripping.
+  // Renumber `port_id`. Start at 1 and consecutively increment for each port.
   DenseMap<uint32_t, Operation *> portIds;
   uint32_t maxPortId = 0;
 
   for (Operation &op : getBodyBlock()->getOperations()) {
     if (op.getDialect() != (*this)->getDialect())
-      return op.emitOpError("is not an RTLIL operation, so it cannot appear in "
-                            "an rtlil.module body");
+      return op.emitOpError("is not allowed in an RTLIL module");
 
     if (auto name = getDeclaredName(&op)) {
       if (failed(verifyIdentifier(&op, "name", *name)))
         return failure();
       auto [it, inserted] = declared.try_emplace(*name, &op);
-      if (!inserted)
-        return op.emitOpError("redeclares the RTLIL name ")
-                   .append(*name)
-                   .attachNote(it->second->getLoc())
-               << "previously declared here; wires and cells share one "
-                  "namespace";
+      if (!inserted) {
+        auto diag = op.emitOpError("redeclares name '") << *name << "'";
+        diag.attachNote(it->second->getLoc())
+            << "previously declared here; wires and cells share one namespace";
+        return diag;
+      }
     }
 
     auto wire = dyn_cast<WireOp>(op);
     if (!wire)
       continue;
     uint32_t portId = wire.getPortId();
-    // An unassigned `port_id` is not a port yet: `fixup_ports()` numbers it.
+    // `fixup_ports()` will number the port.
     if (portId == 0)
       continue;
-    // A port with neither flag is one `fixup_ports()` cannot classify.
+    // Ports need a direction flag.
     if (!wire.getPortInput() && !wire.getPortOutput())
       return op.emitOpError("port_id ")
-             << portId << " has neither an input nor an output designation";
+             << portId << " without input or output flag";
     auto [it, inserted] = portIds.try_emplace(portId, &op);
     if (!inserted)
       return op.emitOpError("reuses port_id ")
@@ -163,11 +159,10 @@ static unsigned getBitWidth(Value value) {
 LogicalResult SliceOp::verify() {
   unsigned inputWidth = getBitWidth(getInput());
   unsigned resultWidth = getBitWidth(getResult());
-  // Add rather than subtract: both are unsigned, and the sum cannot wrap.
   if (uint64_t(getOffset()) + resultWidth > inputWidth)
     return emitOpError("slice of ")
            << resultWidth << " bits at offset " << getOffset()
-           << " runs past the end of a " << inputWidth << "-bit value";
+           << " is out of bounds for the " << inputWidth << "-bit input";
   return success();
 }
 
@@ -176,8 +171,9 @@ LogicalResult ConcatOp::verify() {
   for (Value input : getInputs())
     total += getBitWidth(input);
   if (total != getBitWidth(getResult()))
-    return emitOpError("operands total ")
-           << total << " bits but the result is " << getBitWidth(getResult());
+    return emitOpError("result width ")
+           << getBitWidth(getResult()) << " does not match total operand width "
+           << total;
   return success();
 }
 
@@ -199,47 +195,42 @@ LogicalResult WConnectionOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  // `rtlil.module` is deliberately not a SymbolTable, so the nearest one is the
-  // enclosing `builtin.module`: the op that stands in for the RTLIL design, and
-  // the scope in which module names are unique.
+  // `rtlil.module` is not a SymbolTable, so the lookup resolves in the
+  // enclosing `builtin.module`, which represents the RTLIL design.
   auto callee = symbolTable.lookupNearestSymbolFrom<rtlil::ModuleOp>(
       *this, getTypeAttr());
   if (!callee)
-    return emitOpError("references unknown module ") << getType();
+    return emitOpError("references unknown module '") << getType() << "'";
 
-  // Only the ports this instance names: a port left out is undriven, which
-  // RTLIL allows. `CellOpInterface` has checked that `$ports` and
-  // `$connections` line up, so the zip is safe.
   SmallVector<WireOp> calleePortWires;
   callee.getPortWires(calleePortWires);
   llvm::SmallDenseMap<StringRef, WireOp> calleePorts;
   for (WireOp port : calleePortWires)
     calleePorts.try_emplace(port.getName(), port);
 
-  for (auto [port, connection] : llvm::zip(getPorts(), getConnections())) {
+  // Only check the ports this instance connects: a port left out is undriven,
+  // which RTLIL allows.
+  for (auto [port, connection] :
+       llvm::zip_equal(getPorts(), getConnections())) {
     StringRef name = cast<StringAttr>(port).getValue();
     auto it = calleePorts.find(name);
-    if (it == calleePorts.end())
-      return emitOpError("connects port ")
-                 .append(name)
-                 .append(", which module ")
-                 .append(getType())
-                 .append(" does not declare")
-                 .attachNote(callee.getLoc())
-             << "module declared here";
+    if (it == calleePorts.end()) {
+      auto diag = emitOpError("connects port '")
+                  << name << "', which module '" << getType()
+                  << "' does not declare";
+      diag.attachNote(callee.getLoc()) << "module declared here";
+      return diag;
+    }
 
     unsigned portWidth = getBitWidth(it->second.getResult());
     unsigned connectionWidth = getBitWidth(connection);
-    if (portWidth != connectionWidth)
-      return emitOpError("connects ")
-                 .append(connectionWidth)
-                 .append(" bits to port ")
-                 .append(name)
-                 .append(", which is ")
-                 .append(portWidth)
-                 .append(" bits wide")
-                 .attachNote(it->second.getLoc())
-             << "port declared here";
+    if (portWidth != connectionWidth) {
+      auto diag = emitOpError("connects ")
+                  << connectionWidth << " bits to port '" << name
+                  << "', which is " << portWidth << " bits wide";
+      diag.attachNote(it->second.getLoc()) << "port declared here";
+      return diag;
+    }
   }
   return success();
 }

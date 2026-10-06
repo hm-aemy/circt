@@ -13,7 +13,7 @@
 rtlil.module @"\\top" {
   // expected-note@+1 {{previously declared here}}
   %1 = rtlil.wire "$dup" : !rtlil<val[1]>
-  // expected-error@+1 {{redeclares the RTLIL name $dup}}
+  // expected-error@+1 {{redeclares name '$dup'}}
   %2 = rtlil.wire "$dup" : !rtlil<val[1]>
 }
 

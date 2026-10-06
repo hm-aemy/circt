@@ -221,7 +221,7 @@ rtlil.module @"\\top" {
 rtlil.module @"\\top" {
   // expected-note@+1 {{previously declared here}}
   %1 = rtlil.wire "$dup" : !rtlil<val[1]>
-  // expected-error@+1 {{'rtlil.wire' op redeclares the RTLIL name $dup}}
+  // expected-error@+1 {{'rtlil.wire' op redeclares name '$dup'}}
   %2 = rtlil.wire "$dup" : !rtlil<val[1]>
 }
 
@@ -231,8 +231,15 @@ rtlil.module @"\\top" {
 rtlil.module @"\\top" {
   // expected-note@+1 {{previously declared here}}
   %1 = rtlil.wire "$x" : !rtlil<val[1]>
-  // expected-error@+1 {{'rtlil.and' op redeclares the RTLIL name $x}}
+  // expected-error@+1 {{'rtlil.and' op redeclares name '$x'}}
   "rtlil.and"(%1, %1, %1) <{name="$x", width=1 : i32, opsSigned = 0 : i32}> : (!rtlil<val[1]>, !rtlil<val[1]>, !rtlil<val[1]>) -> ()
+}
+
+// -----
+
+rtlil.module @"\\top" {
+  // expected-error@+1 {{'builtin.unrealized_conversion_cast' op is not allowed in an RTLIL module}}
+  %0 = "builtin.unrealized_conversion_cast"() : () -> i1
 }
 
 // -----
@@ -255,7 +262,7 @@ rtlil.module @"\\top" {
 // -----
 
 rtlil.module @"\\top" {
-  // expected-error@+1 {{'rtlil.instance' op references unknown module \nope}}
+  // expected-error@+1 {{'rtlil.instance' op references unknown module '\nope'}}
   "rtlil.instance"() <{name="$i", type=@"\\nope", ports = [], parameters = []}> : () -> ()
 }
 
@@ -263,7 +270,7 @@ rtlil.module @"\\top" {
 
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
-  // expected-error@+1 {{'rtlil.slice' op slice of 4 bits at offset 6 runs past the end of a 8-bit value}}
+  // expected-error@+1 {{'rtlil.slice' op slice of 4 bits at offset 6 is out of bounds for the 8-bit input}}
   %s = "rtlil.slice"(%w) <{offset = 6 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
 }
 
@@ -271,7 +278,7 @@ rtlil.module @"\\top" {
 
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
-  // expected-error@+1 {{'rtlil.concat' op operands total 16 bits but the result is 8}}
+  // expected-error@+1 {{'rtlil.concat' op result width 8 does not match total operand width 16}}
   %y = "rtlil.concat"(%w, %w) : (!rtlil<val[8]>, !rtlil<val[8]>) -> !rtlil<val[8]>
 }
 
@@ -309,7 +316,7 @@ rtlil.module @"\\top" {
 // `fixup_ports()` zeroes the port_id of any wire with no direction flag, so
 // this port would silently vanish from `module->ports`.
 rtlil.module @"\\top" {
-  // expected-error@+1 {{'rtlil.wire' op port_id 1 has neither an input nor an output designation}}
+  // expected-error@+1 {{'rtlil.wire' op port_id 1 without input or output flag}}
   %p = rtlil.wire "\\p" port 1 : !rtlil<val[1]>
 }
 
@@ -349,7 +356,7 @@ rtlil.module @"\\callee" {
 }
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
-  // expected-error@+1 {{'rtlil.instance' op connects port \nope, which module \callee does not declare}}
+  // expected-error@+1 {{'rtlil.instance' op connects port '\nope', which module '\callee' does not declare}}
   "rtlil.instance"(%w) <{name="$i", type=@"\\callee", ports = ["\\nope"], parameters = []}> : (!rtlil<val[8]>) -> ()
 }
 
@@ -361,6 +368,6 @@ rtlil.module @"\\callee" {
 }
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[32]>
-  // expected-error@+1 {{'rtlil.instance' op connects 32 bits to port \a, which is 8 bits wide}}
+  // expected-error@+1 {{'rtlil.instance' op connects 32 bits to port '\a', which is 8 bits wide}}
   "rtlil.instance"(%w) <{name="$i", type=@"\\callee", ports = ["\\a"], parameters = []}> : (!rtlil<val[32]>) -> ()
 }
