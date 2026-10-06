@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #ifndef CIRCT_DIALECT_RTLIL_RTLIL_TD
 #define CIRCT_DIALECT_RTLIL_RTLIL_TD
 

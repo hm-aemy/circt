@@ -47,10 +47,11 @@ def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
   let assemblyFormat = "`<` $name $value (`flags` $flags^)? `>`";
   let builders = [
     AttrBuilder<(ins
-      "llvm::StringRef":$name, "unsigned":$width,"uint64_t":$val), [{
-        auto intattr = mlir::IntegerAttr::get(mlir::IntegerType::get($_ctxt, width), val);
-        auto strattr = mlir::StringAttr::get($_ctxt, name);
-        return Base::get($_ctxt, strattr, intattr, std::nullopt);
+      "llvm::StringRef":$name, "unsigned":$width, "uint64_t":$val), [{
+        auto intAttr = mlir::IntegerAttr::get(
+            mlir::IntegerType::get($_ctxt, width), val);
+        auto nameAttr = mlir::StringAttr::get($_ctxt, name);
+        return Base::get($_ctxt, nameAttr, intAttr, std::nullopt);
       }]
     >
   ];
@@ -59,7 +60,8 @@ def ParamAttr : AttrDef<RTLILDialect, "Parameter"> {
 
 def ParamArrayAttr
   : TypedArrayAttrBase<ParamAttr, "cell parameters"> {
-  let constBuilderCall = "::circt::rtlil::createParamArrayAttr($_builder.getContext(), $0)";
+  let constBuilderCall =
+      "::circt::rtlil::createParamArrayAttr($_builder.getContext(), $0)";
   let summary = "A dict of `RTLIL::Const`, keyed by `RTLIL::IdString`";
   let description = [{
     Storage for the parameters of a cell or the attributes of any object that
@@ -96,6 +98,5 @@ def ConstAttr : AttrDef<RTLILDialect, "Const"> {
                                       ::llvm::StringRef bits);
   }];
 }
-
 
 #endif // CIRCT_DIALECT_RTLIL_RTLILATTRIBUTES_TD
