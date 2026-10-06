@@ -25,7 +25,7 @@ using namespace circt;
 
 namespace {
 
-/// Initialize once per binary, as Yosys cannot be set up again after shutdown.
+// Initialize once per binary, as Yosys cannot be set up again after shutdown.
 class YosysEnvironment : public ::testing::Environment {
 public:
   void SetUp() override {

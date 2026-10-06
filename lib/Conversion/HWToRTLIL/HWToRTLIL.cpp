@@ -542,8 +542,8 @@ struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
   }
 };
 
-// Both `lowBit` and `offset` count from bit 0 of the input, and the width taken
-// is the width of the result.
+// Both `lowBit` and `offset` count from bit 0 of the input, and the width
+// taken is the width of the result.
 struct ExtractConversion : ConversionPatternBase<comb::ExtractOp> {
   using ConversionPatternBase<comb::ExtractOp>::ConversionPatternBase;
 

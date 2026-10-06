@@ -43,7 +43,7 @@ parseCellPorts(OpAsmParser &parser,
 }
 
 /// Print the combined `$ports` and `$connections`.
-/// Verifier of `CellOpInterface` ensure equal length.
+/// Verifier of `CellOpInterface` ensures equal length.
 static void printCellPorts(OpAsmPrinter &printer, Operation *,
                            OperandRange connections, ArrayAttr ports) {
   printer << '[';
@@ -89,7 +89,7 @@ void rtlil::ModuleOp::build(OpBuilder &builder, OperationState &result,
   result.addRegion()->emplaceBlock();
 }
 
-/// Wire and Cell operations names share the namespace.
+// Wire and Cell operations names share the namespace.
 static std::optional<StringRef> getDeclaredName(Operation *op) {
   if (auto wire = dyn_cast<WireOp>(op))
     return wire.getName();
