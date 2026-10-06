@@ -28,16 +28,6 @@ void RTLILDialect::registerAttributes() {
       >();
 }
 
-ArrayAttr circt::rtlil::createParamArrayAttr(
-    mlir::MLIRContext *context,
-    llvm::ArrayRef<std::tuple<llvm::StringRef, unsigned, uint64_t>> &&r) {
-  llvm::SmallVector<Attribute, 5> v;
-  for (auto &&[name, width, val] : r) {
-    v.emplace_back(ParameterAttr::get(context, name, width, val));
-  }
-  return ArrayAttr::get(context, v);
-}
-
 //===----------------------------------------------------------------------===//
 // ConstAttr
 //===----------------------------------------------------------------------===//
@@ -117,6 +107,15 @@ void ConstAttr::print(AsmPrinter &printer) const {
 //===----------------------------------------------------------------------===//
 // ParameterAttr
 //===----------------------------------------------------------------------===//
+
+ArrayAttr circt::rtlil::createParamArrayAttr(
+    MLIRContext *context,
+    ArrayRef<std::tuple<StringRef, unsigned, uint64_t>> params) {
+  SmallVector<Attribute, 5> attrs;
+  for (auto [name, width, value] : params)
+    attrs.push_back(ParameterAttr::get(context, name, width, value));
+  return ArrayAttr::get(context, attrs);
+}
 
 LogicalResult
 ParameterAttr::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
