@@ -257,22 +257,16 @@ def InstanceOp : RTLILOp<"instance", [
 class FixedOperands<int n>
     : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;
 
-class FixedWidths<list<string> widths>
-    : TraitList<!foreach(idx, !range(widths),
-        AllMatch<["::llvm::cast<::circt::rtlil::MValueType>(getOperand(" # idx #
-                    ").getType()).getWidth()",
-                  "" # widths[idx]],
-                 "input " # idx # " width is " # widths[idx]>)>;
-
 // A cell type with a dedicated op.
-// `ports` and `widths` line up with `$connections`.
+// `ports` and `widths` line up with `$connections`. A width is either a number
+// or `$width`, the op's `width` attribute; the verifier checks each port.
 // `extraArgs` for arguments between `$width` and `$type`, such as a signedness
 // flag.
 // `$type` and `$ports` are fixed by the op.
 class TypedCellOp<string t, list<string> ports, list<string> widths,
                   dag extraArgs = (ins)>
     : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>,
-                  FixedOperands<!size(widths)>, FixedWidths<widths>]> {
+                  FixedOperands<!size(widths)>]> {
   let arguments = !con(
       (ins StrAttr:$name,
            Variadic<MValueType>:$connections,
@@ -284,6 +278,15 @@ class TypedCellOp<string t, list<string> ports, list<string> widths,
                  # "}">:$ports));
   let assemblyFormat = [{
     $name `(` $connections `)` attr-dict `:` type($connections)
+  }];
+  let hasVerifier = 1;
+  let extraClassDefinition = [{
+    ::mlir::LogicalResult $cppClass::verify() {
+      return verifyPortWidths(*this, {}] #
+        !interleave(!foreach(p, ports, "\"" # p # "\""), ", ") # [{}, {}] #
+        !interleave(!foreach(w, widths, !subst("$width", "getWidth()", w)),
+                    ", ") # [{});
+    }
   }];
 }
 

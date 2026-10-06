@@ -55,6 +55,20 @@ static void printCellPorts(OpAsmPrinter &printer, Operation *,
   printer << ']';
 }
 
+/// Check that each connection of a typed cell has the width its port requires.
+/// `FixedOperands` has already checked the number of connections.
+static LogicalResult verifyPortWidths(Operation *op, ArrayRef<StringRef> ports,
+                                      ArrayRef<unsigned> widths) {
+  for (auto [port, width, connection] :
+       llvm::zip_equal(ports, widths, op->getOperands())) {
+    unsigned actual = cast<MValueType>(connection.getType()).getWidth();
+    if (actual != width)
+      return op->emitOpError("port ")
+             << port << " is " << actual << " bits wide, but must be " << width;
+  }
+  return success();
+}
+
 #define GET_OP_CLASSES
 #include "circt/Dialect/RTLIL/RTLIL.cpp.inc"
 

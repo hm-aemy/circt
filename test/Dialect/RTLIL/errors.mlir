@@ -39,7 +39,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.and"(%1, %2, %3) <{name = "$4", width=32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[31]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.and' op failed to verify that input 1 width is $width}}
+  // expected-error@-1 {{'rtlil.and' op port B is 31 bits wide, but must be 32}}
 }
 
 // -----
@@ -74,7 +74,7 @@ rtlil.module @"\\top" {
 
 
   "rtlil.mux"(%1, %2, %select, %3) <{name = "$4", width=32 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>,!rtlil<val[2]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.mux' op failed to verify that input 2 width is 1}}
+  // expected-error@-1 {{'rtlil.mux' op port S is 2 bits wide, but must be 1}}
 }
 
 // -----
@@ -87,7 +87,7 @@ rtlil.module @"\\top" {
 
 
   "rtlil.mux"(%1, %2, %select, %3) <{name = "$4", width=32 : i32}> : (!rtlil<val[31]>, !rtlil<val[32]>,!rtlil<val[1]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.mux' op failed to verify that input 0 width is $width}}
+  // expected-error@-1 {{'rtlil.mux' op port A is 31 bits wide, but must be 32}}
 }
 
 // -----
@@ -123,7 +123,7 @@ rtlil.module @"\\top" {
 
 
   "rtlil.gt"(%1, %2, %3) <{name = "$4", width=32 : i32, opsSigned = 1 : i32}> : (!rtlil<val[31]>,!rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  // expected-error@-1 {{'rtlil.gt' op failed to verify that input 0 width is $width}}
+  // expected-error@-1 {{'rtlil.gt' op port A is 31 bits wide, but must be 32}}
 }
 
 // -----
@@ -135,7 +135,7 @@ rtlil.module @"\\top" {
 
 
   "rtlil.gt"(%1, %2, %3) <{name = "$4", width=32 : i32, opsSigned = 1 : i32}> : (!rtlil<val[32]>,!rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.gt' op failed to verify that input 2 width is 1}}
+  // expected-error@-1 {{'rtlil.gt' op port Y is 32 bits wide, but must be 1}}
 }
 
 // -----
@@ -146,7 +146,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.dff"(%1, %2, %3) <{name="$4", width=32 : i32}> : (!rtlil<val[32]>,!rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.dff' op failed to verify that input 0 width is 1}}
+  // expected-error@-1 {{'rtlil.dff' op port CLK is 32 bits wide, but must be 1}}
 }
 
 // -----
@@ -157,7 +157,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[33]>
 
   "rtlil.dff"(%1, %2, %3) <{name="$4", width=32 : i32}> : (!rtlil<val[1]>,!rtlil<val[32]>, !rtlil<val[33]>) -> ()
-  // expected-error@-1 {{'rtlil.dff' op failed to verify that input 2 width is $width}}
+  // expected-error@-1 {{'rtlil.dff' op port Q is 33 bits wide, but must be 32}}
 }
 
 // -----
@@ -169,7 +169,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.aldff"(%1, %2, %reset, %3, %3) <{name="$4", width=32 : i32}> : (!rtlil<val[1]>,!rtlil<val[32]>,!rtlil<val[2]>,!rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.aldff' op failed to verify that input 2 width is 1}}
+  // expected-error@-1 {{'rtlil.aldff' op port ALOAD is 2 bits wide, but must be 1}}
 }
 
 // -----
@@ -193,7 +193,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.aldff"(%1, %2, %reset, %3, %3) <{name="$4", width=32 : i32}> : (!rtlil<val[1]>,!rtlil<val[64]>,!rtlil<val[1]>,!rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.aldff' op failed to verify that input 1 width is $width}}
+  // expected-error@-1 {{'rtlil.aldff' op port D is 64 bits wide, but must be 32}}
 }
 // -----
 
