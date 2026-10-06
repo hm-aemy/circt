@@ -30,7 +30,7 @@ def RunYosys : Pass<"rtlil-run-yosys", "mlir::ModuleOp"> {
 
   let options = [
     Option<"script", "script", "std::string", "\"\"",
-           "Yosys commands, separated by ';' or newlines">,
+           "Yosys commands, written as for 'yosys -p'">,
     Option<"topModule", "top", "std::string", "\"\"",
            "Module for 'hierarchy -top'; defaults to '-auto-top'">,
     Option<"runHierarchy", "hierarchy", "bool", "true",

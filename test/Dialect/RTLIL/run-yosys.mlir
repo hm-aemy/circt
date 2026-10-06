@@ -1,5 +1,5 @@
 // RUN: circt-opt %s --convert-hw-to-rtlil \
-// RUN:   --rtlil-run-yosys='script={opt;techmap;abc -g AND,OR,XOR;opt_clean}' \
+// RUN:   --rtlil-run-yosys='script={opt; techmap; abc -g AND,OR,XOR; opt_clean}' \
 // RUN:   | FileCheck %s
 // REQUIRES: libyosys
 

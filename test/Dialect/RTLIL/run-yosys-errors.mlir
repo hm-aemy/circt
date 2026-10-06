@@ -10,8 +10,8 @@
 
 // The failing command is named, and Yosys' own log is attached as a note so
 // there is something to debug with.
-// expected-error@below {{yosys command 'no_such_pass' failed: No such command: no_such_pass}}
-// expected-note@below {{yosys log:}}
+// expected-error@below {{Yosys command 'no_such_pass' failed: No such command: no_such_pass}}
+// expected-note@below {{Yosys log:}}
 module {
   rtlil.module @"\\demo" {
     %0 = rtlil.wire "\\a" input port 1 : !rtlil<val[8]>

@@ -21,8 +21,9 @@
 //   3. Everything else goes through `log_error`, which ends in `_Exit(1)`.
 //      `circt::yosys::initialize()` installs a `log_error_atexit` hook so that
 //      at least a message gets out.
-//   4. Yosys' log is redirected while the script runs, so a passing test does
-//      not drown in banner text and `--verify-diagnostics` stays usable.
+//
+// Yosys' log is redirected while the script runs, so a passing test does not
+// drown in banner text and `--verify-diagnostics` stays usable.
 //
 // Without libyosys the pass is still registered, but only reports an error.
 //
@@ -41,14 +42,13 @@
 #include "YosysScript.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <mutex>
-#include <sstream>
 #include <string>
 
 // Yosys headers last; everything stays explicitly `Yosys::`-qualified.
@@ -83,71 +83,74 @@ void RunYosysPass::runOnOperation() {
 
 #else
 
-/// Split a script into individual commands. Yosys' own `run_pass` takes one
-/// command at a time, and splitting here means a failing command can be named
-/// in the diagnostic.
+/// Split the supplied script into commands and run each one.
+/// This follows the loop Yosys uses and reuses `next_token`.
 ///
-/// A `;` inside a `+`-prefixed argument is not a separator: that is how `abc`
-/// spells a sub-script, as in `abc -script +strash;dc2`, and Yosys hands the
-/// whole token to `abc` untouched. Newlines separate commands unconditionally.
+///   - Commands end with newline or a word ending with `;`. When the `;`
+///   is within a word, it does not split. Needed for `abc -script +strash;dc2`.
+///   - `;;` and `;;;` as shorthand for `clean` and `clean -purge`.
+///   - `#` starts a comment that runs to the end of the line.
+///   - A double-quoted string is one word, even if it contains a `;`.
+///   - A script starting with `!` goes to the shell whole.
 static SmallVector<std::string> splitScript(StringRef script) {
   SmallVector<std::string> commands;
-
-  auto push = [&](StringRef piece) {
-    if (StringRef trimmed = piece.trim(); !trimmed.empty())
-      commands.push_back(trimmed.str());
+  SmallVector<std::string> words;
+  auto finish = [&] {
+    if (!words.empty())
+      commands.push_back(llvm::join(words, " "));
+    words.clear();
   };
 
-  size_t start = 0;
-  // Whether the token being scanned started with `+`, in which case a `;`
-  // belongs to it rather than ending the command.
-  bool inPlusToken = false;
-  bool atTokenStart = true;
-  for (size_t i = 0, e = script.size(); i != e; ++i) {
-    char c = script[i];
-    if (c == '\n' || (c == ';' && !inPlusToken)) {
-      push(script.slice(start, i));
-      start = i + 1;
-      inPlusToken = false;
-      atTokenStart = true;
-      continue;
-    }
-    if (c == ' ' || c == '\t') {
-      inPlusToken = false;
-      atTokenStart = true;
-      continue;
-    }
-    if (atTokenStart) {
-      inPlusToken = c == '+';
-      atTokenStart = false;
-    }
+  std::string rest = script.str();
+  std::string word = Yosys::next_token(rest, " \t\r\n", true);
+  if (!word.empty() && word.front() == '!') {
+    commands.push_back(script.trim().str());
+    return commands;
   }
-  push(script.substr(start));
+
+  while (!word.empty()) {
+    if (word.front() == '#') {
+      rest.erase(0, std::min(rest.find_first_of("\r\n"), rest.size()));
+    } else if (word.back() == ';') {
+      size_t semicolons = 0;
+      while (!word.empty() && word.back() == ';') {
+        word.pop_back();
+        ++semicolons;
+      }
+      if (!word.empty())
+        words.push_back(word);
+      finish();
+      if (semicolons == 2)
+        commands.push_back("clean");
+      else if (semicolons == 3)
+        commands.push_back("clean -purge");
+    } else {
+      words.push_back(word);
+    }
+
+    size_t next = rest.find_first_not_of(" \t");
+    if (next != std::string::npos && (rest[next] == '\r' || rest[next] == '\n'))
+      finish();
+    word = Yosys::next_token(rest, " \t\r\n", true);
+  }
+  finish();
   return commands;
 }
 
 void RunYosysPass::runOnOperation() {
   mlir::ModuleOp module = getOperation();
 
-  // Yosys is a single global design database: `yosys_design`, `autoidx`, the
-  // pass registry and the `IdString` intern table are all globals, and
-  // `IdString::insert` asserts that no other thread is running. Anchoring at
-  // the top-level module already means the pass manager runs this serially, but
-  // the mutex also covers nested pipelines and in-process embedders, where the
-  // failure mode would be an abort rather than a diagnostic.
+  // Ensure that all invocations run serially.
   static std::mutex yosysMutex;
   std::lock_guard<std::mutex> guard(yosysMutex);
 
-  // Idempotent, but not itself thread safe, hence inside the lock.
   if (auto error = circt::yosys::initialize()) {
     module.emitError("failed to initialize Yosys: ")
         << llvm::toString(std::move(error));
     return signalPassFailure();
   }
 
-  // Only the `rtlil.module`s go to Yosys, which is what lets this pass run on a
-  // partly converted design: an `hw.module` `convert-hw-to-rtlil` could not
-  // handle stays in the file and is still there when the import writes back.
+  // Only process `rtlil.module`s.
   Yosys::RTLIL::Design design;
   auto exported = llvm::to_vector(module.getOps<circt::rtlil::ModuleOp>());
   if (failed(circt::rtlil::exportRTLIL(exported, &design)))
@@ -161,28 +164,25 @@ void RunYosysPass::runOnOperation() {
   for (const std::string &command : splitScript(script))
     commands.push_back(command);
 
-  // The catch lives in `YosysScript.cpp`, which is the only file here compiled
-  // with exceptions; see `YosysScript.h`. Silencing the log is this side's job,
-  // so that a failure can still quote what Yosys had to say.
+  // Collect error messages from caught failures in `YosysScript.cpp`.
   circt::yosys::LogCapture capture(quiet);
   std::string failedCommand, error;
   if (!circt::rtlil::detail::runYosysScript(commands, &design, failedCommand,
                                             error)) {
-    auto diag = module.emitError("yosys command '")
+    auto diag = module.emitError("Yosys command '")
                 << failedCommand << "' failed: " << error;
     if (std::string log = capture.str(); !log.empty())
-      diag.attachNote() << "yosys log:\n" << log;
+      diag.attachNote() << "Yosys log:\n" << log;
     return signalPassFailure();
   }
 
-  // Replace rather than merge: after a script there is no correspondence left
-  // between the modules that went in and the ones that came out. Only the
-  // `rtlil.module`s are erased, so anything else in the top-level module
-  // survives, an unconverted `hw.module` for example.
-  for (auto stale :
-       llvm::make_early_inc_range(module.getOps<circt::rtlil::ModuleOp>()))
+  // The design is now the source of truth. Yosys may have renamed, removed
+  // or added modules, so drop the exported ones.
+  for (auto stale : exported)
     stale.erase();
 
+  // Import all modules from the design. A failure leaves the IR without them,
+  // which is fine since the pass fails and the IR is discarded.
   if (failed(circt::rtlil::importRTLIL(&design, module)))
     return signalPassFailure();
 }
