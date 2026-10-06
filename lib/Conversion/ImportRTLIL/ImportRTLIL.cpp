@@ -6,15 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Walks a `Yosys::RTLIL::Design` into `rtlil.module` ops.
-//
-// Two things make this harder than the export direction. First, a design that
-// has been through `opt`, `techmap` or `abc` connects cell ports to arbitrary
-// `SigSpec`s -- slices of wires concatenated with constant bits -- which become
-// `rtlil.slice` and `rtlil.concat` here. Second, cells arrive with types the
-// dialect has no op for (`$_AND_`, `$_DFF_P_`, `$lut`, ...), so every cell
-// becomes a generic `rtlil.cell` carrying its ports and parameters explicitly.
-// Only a cell whose type names a module in the design becomes `rtlil.instance`.
+// Walks a `Yosys::RTLIL::Design` into `rtlil.module` ops. `SigSpec`s become
+// `rtlil.slice` and `rtlil.concat`. Cells become generic `rtlil.cell`s, or
+// `rtlil.instance` when their type names a module in the design.
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,7 +33,6 @@
 #include <sstream>
 #include <string>
 
-// Yosys headers last; everything stays explicitly `Yosys::`-qualified.
 #include "kernel/rtlil.h"
 #include "kernel/yosys.h"
 
@@ -47,11 +40,10 @@ using namespace circt;
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
-// Small helpers
+// Helpers
 //===----------------------------------------------------------------------===//
 
-/// An `RTLIL::IdString` as a `StringRef`. RTLIL names keep their `\`/`$` sigil
-/// in the dialect, so nothing is stripped.
+/// An `RTLIL::IdString` as a `StringRef`, sigil included.
 static StringRef toStringRef(const Yosys::RTLIL::IdString &name) {
   const char *cstr = name.c_str();
   return StringRef(cstr);
@@ -77,12 +69,8 @@ private:
   LogicalResult importModule(Yosys::RTLIL::Module *source);
   LogicalResult importCell(Yosys::RTLIL::Cell *cell, Location loc);
 
-  /// A value carrying the bits of `spec`, built from the wires already
-  /// imported plus `rtlil.const`, `rtlil.slice` and `rtlil.concat` as needed.
-  ///
-  /// `context` is the subject of any diagnostic ("port \\A of cell $and"): a
-  /// `SigSpec` is not an `AttrObject`, so it has no `src` of its own and every
-  /// signal under a cell shares that cell's location.
+  /// A value carrying the bits of `spec`. `context` names the signal in
+  /// diagnostics, since a `SigSpec` has no location of its own.
   Value importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
                       const Twine &context);
 
@@ -90,8 +78,7 @@ private:
   FailureOr<rtlil::ConstAttr> importBits(const Yosys::RTLIL::Const &value,
                                          Location loc);
 
-  /// The attribute for one `RTLIL::Const` used as a parameter or an attribute
-  /// value, where an `IntegerAttr` or `StringAttr` is preferable when it fits.
+  /// A parameter or attribute value, as an integer or string when it fits.
   FailureOr<Attribute> importConst(const Yosys::RTLIL::Const &value,
                                    Location loc);
 
@@ -112,7 +99,7 @@ private:
 
   /// Wires of the module currently being imported.
   llvm::DenseMap<Yosys::RTLIL::Wire *, Value> wireValues;
-  /// Module names in the design, so a cell can be recognised as an instance.
+  /// Module names in the design, so a cell can be recognized as an instance.
   llvm::DenseSet<StringRef> moduleNames;
   /// The module currently being built, for diagnostics.
   rtlil::ModuleOp currentModule;
@@ -131,8 +118,7 @@ struct SrcPiece {
 };
 } // namespace
 
-/// Parse `line.col`. The column is optional: Yosys omits it when the frontend
-/// had none.
+/// Parse `line.col`, where the column is optional.
 static std::optional<std::pair<unsigned, unsigned>>
 parseLineCol(StringRef text) {
   auto [lineStr, colStr] = text.split('.');
@@ -144,11 +130,9 @@ parseLineCol(StringRef text) {
   return std::make_pair(line, col);
 }
 
-/// Parse one `file:line.col-line.col` piece of an RTLIL `src`. The end is kept
-/// because `read_verilog` emits genuine ranges.
+/// Parse one `file:line.col-line.col` piece of an RTLIL `src`.
 static std::optional<SrcPiece> parseSrcPiece(StringRef piece) {
-  // Split at the *last* colon so that a Windows drive letter or a path
-  // containing a colon does not confuse the range.
+  // Split at the last colon, as the path may contain colons.
   size_t colon = piece.rfind(':');
   if (colon == StringRef::npos)
     return std::nullopt;
@@ -165,8 +149,7 @@ static std::optional<SrcPiece> parseSrcPiece(StringRef piece) {
 }
 
 Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
-  // `\circt.loc` wins over the `src` derived from it. Anything Yosys made
-  // along the way has only `src`, so this is a preference, not a requirement.
+  // Prefer `\circt.loc`; cells Yosys created only have `src`.
   auto exact = object.attributes.find(id(circtLocAttrName));
   if (exact != object.attributes.end()) {
     std::string text = exact->second.decode_string();
@@ -190,8 +173,7 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
     if (!parsed)
       continue;
     auto file = builder.getStringAttr(parsed->file);
-    // `FileLineColRange::get` does not canonicalize, so collapse a point by
-    // hand or it stops comparing equal to the usual `FileLineColLoc`.
+    // `FileLineColRange::get` does not canonicalize a point range.
     if (parsed->startLine == parsed->endLine &&
         parsed->startColumn == parsed->endColumn)
       locations.push_back(
@@ -213,7 +195,7 @@ FailureOr<rtlil::ConstAttr>
 Importer::importBits(const Yosys::RTLIL::Const &value, Location loc) {
   SmallVector<rtlil::StateEnum> bits;
   bits.reserve(value.size());
-  // `to_bits()` is public and works whichever backing the Const uses.
+  // `to_bits()` works for either Const backing.
   for (Yosys::RTLIL::State bit : value.to_bits()) {
     rtlil::StateEnum state;
     switch (bit) {
@@ -233,12 +215,9 @@ Importer::importBits(const Yosys::RTLIL::Const &value, Location loc) {
       state = rtlil::StateEnum::Sa;
       break;
     default:
-      // `Sm` is a marker a few Yosys passes use internally and has no
-      // `StateEnum` case. Range-check rather than casting an out-of-range
-      // value, which would be undefined behaviour rather than a diagnostic.
+      // `Sm` is internal to Yosys and has no `StateEnum` case.
       return mlir::emitError(loc)
-             << "constant contains RTLIL state " << int(bit)
-             << ", which the rtlil dialect cannot represent";
+             << "unsupported RTLIL state " << int(bit) << " in constant";
     }
     bits.push_back(state);
   }
@@ -247,21 +226,12 @@ Importer::importBits(const Yosys::RTLIL::Const &value, Location loc) {
 
 FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
                                            Location loc) {
-  // The only sound discriminator is the flag. `Const::is_str()` is private, and
-  // `Const(long long, int)` uses the string backing internally for
-  // byte-multiple widths, so the backing tag says nothing about intent.
-  // `decode_string()` also drops NUL bytes, which makes it lossy on anything
-  // that is not really a string.
+  // Only the flag marks a real string; the backing does not.
   if (value.flags & Yosys::RTLIL::CONST_FLAG_STRING)
     return Attribute(builder.getStringAttr(value.decode_string()));
 
-  // A fully defined value narrow enough to fit becomes an `IntegerAttr`. That
-  // is what the dialect's own `#rtlil.param` builder produces, and it is what
-  // makes `\A_WIDTH 8` readable instead of a 32-character bit string.
-  // Export expands it back to the same bits, so nothing is lost.
-  //
-  // Only for *parameters and attributes*: `rtlil.const` needs the bit array,
-  // and reaches `importBits` directly.
+  // A fully defined value of up to 64 bits becomes an `IntegerAttr`, which
+  // export expands back to the same bits.
   std::vector<Yosys::RTLIL::State> rawBits = value.to_bits();
   if (!rawBits.empty() && rawBits.size() <= 64 &&
       llvm::all_of(rawBits, [](Yosys::RTLIL::State bit) {
@@ -281,8 +251,7 @@ FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
   return Attribute(*bits);
 }
 
-/// `flags` only when it says something: the common case is 0, and printing it
-/// on every parameter buries the ones that matter.
+/// `flags`, unless they are the default.
 static std::optional<uint16_t> nonDefaultFlags(const Yosys::RTLIL::Const &v) {
   if (v.flags == Yosys::RTLIL::CONST_FLAG_NONE)
     return std::nullopt;
@@ -292,9 +261,7 @@ static std::optional<uint16_t> nonDefaultFlags(const Yosys::RTLIL::Const &v) {
 FailureOr<ArrayAttr>
 Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
                            Location loc) {
-  // Sorted by name: `attributes` is a hash dict, so its iteration order is an
-  // implementation detail of Yosys and would make FileCheck output unstable
-  // across Yosys versions.
+  // Sort by name, as hash dict order is not stable.
   SmallVector<std::pair<StringRef, const Yosys::RTLIL::Const *>> sorted;
   for (const auto &[name, value] : object.attributes) {
     // Both become the op's Location, and export re-derives them from it.
@@ -323,8 +290,7 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
 Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
                               const Twine &context) {
   SmallVector<Value> pieces;
-  // `chunks()` is ordered least significant first, which is also the operand
-  // order `rtlil.concat` uses.
+  // `chunks()` and `rtlil.concat` are both least significant first.
   for (const auto &chunk : spec.chunks()) {
     if (!chunk.wire) {
       // A run of constant bits.
@@ -338,14 +304,12 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
 
     auto it = wireValues.find(chunk.wire);
     if (it == wireValues.end()) {
-      mlir::emitError(loc) << context << " refers to wire "
-                           << toStringRef(chunk.wire->name)
-                           << ", which is not in this module";
+      mlir::emitError(loc) << context << " references unknown wire '"
+                           << toStringRef(chunk.wire->name) << "'";
       return {};
     }
     Value wire = it->second;
-    // A chunk covering the whole wire stays bare; `rtlil.slice` appears only
-    // where the SigSpec genuinely takes a part.
+    // Only slice when the chunk takes part of the wire.
     if (chunk.offset == 0 && chunk.width == chunk.wire->width) {
       pieces.push_back(wire);
       continue;
@@ -356,9 +320,7 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
   }
 
   if (pieces.empty()) {
-    mlir::emitError(loc) << context
-                         << " is a zero-width signal, which the rtlil dialect "
-                            "cannot represent";
+    mlir::emitError(loc) << context << " has zero width";
     return {};
   }
   if (pieces.size() == 1)
@@ -371,9 +333,7 @@ Value Importer::importSigSpec(const Yosys::RTLIL::SigSpec &spec, Location loc,
 //===----------------------------------------------------------------------===//
 
 LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
-  // Both dicts are sorted by name before use: Yosys' `dict` is a hash map whose
-  // iteration order is not part of its contract, and the port-name and operand
-  // arrays here have to be index-parallel *and* stable for FileCheck.
+  // Sort by name, as hash dict order is not stable.
   SmallVector<std::pair<StringRef, const Yosys::RTLIL::SigSpec *>> sortedPorts;
   for (const auto &[port, signal] : cell->connections())
     sortedPorts.emplace_back(toStringRef(port), &signal);
@@ -382,8 +342,9 @@ LogicalResult Importer::importCell(Yosys::RTLIL::Cell *cell, Location loc) {
   SmallVector<Attribute> portNames;
   SmallVector<Value> connections;
   for (auto [port, signal] : sortedPorts) {
-    Value value = importSigSpec(
-        *signal, loc, "port " + port + " of cell " + toStringRef(cell->name));
+    Value value = importSigSpec(*signal, loc,
+                                "port '" + port + "' of cell '" +
+                                    toStringRef(cell->name) + "'");
     if (!value)
       return failure();
     portNames.push_back(builder.getStringAttr(port));
@@ -428,18 +389,14 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
   Location loc = importLocation(*source);
   StringRef name = toStringRef(source->name);
 
-  // Reject rather than drop: silently losing a process or a memory changes what
-  // the design means.
+  // Reject rather than silently drop processes and memories.
   if (!source->processes.empty())
     return mlir::emitError(loc)
-           << "module " << name
-           << " contains processes, which the rtlil dialect cannot represent; "
-              "run 'proc' before importing";
+           << "module '" << name << "' contains processes; run 'proc' first";
   if (!source->memories.empty())
-    return mlir::emitError(loc)
-           << "module " << name
-           << " contains memories, which the rtlil dialect cannot represent; "
-              "run 'memory_collect' or 'memory_map' before importing";
+    return mlir::emitError(loc) << "module '" << name
+                                << "' contains memories; run 'memory_collect' "
+                                   "or 'memory_map' first";
 
   auto attributes = importAttributes(*source, loc);
   if (failed(attributes))
@@ -458,9 +415,7 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(moduleOp.getBodyBlock());
 
-  // Wires first: every SigSpec below refers to them. The body is a graph
-  // region, so nothing forces cells to follow, but keeping the order makes the
-  // output readable.
+  // Wires first, as every SigSpec below refers to them.
   for (auto *wire : source->wires()) {
     Location wireLoc = importLocation(*wire);
     auto wireAttributes = importAttributes(*wire, wireLoc);
@@ -479,10 +434,9 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
 
   unsigned index = 0;
   for (const auto &[lhs, rhs] : source->connections()) {
-    // Yosys neither names nor locates a connection, so its position in the
-    // list is the only handle a diagnostic has.
+    // Connections have no name or location, so identify them by index.
     std::string which =
-        ("connection " + Twine(index++) + " of module " + name).str();
+        ("connection " + Twine(index++) + " of module '" + name + "'").str();
     Value lhsValue = importSigSpec(lhs, loc, "the left-hand side of " + which);
     Value rhsValue = importSigSpec(rhs, loc, "the right-hand side of " + which);
     if (!lhsValue || !rhsValue)
@@ -530,25 +484,18 @@ void circt::rtlil::registerImportRTLILTranslation() {
           return {};
         }
 
-        // The RTLIL frontend announces itself and the file it read on Yosys'
-        // log, which is stderr by default. A translation tool writes its result
-        // and nothing else, so keep that to ourselves; a fatal Yosys error
-        // still reaches stderr through `log_error_stderr`.
+        // Keep the frontend's log off stderr. Fatal errors still get through.
         circt::yosys::LogCapture capture;
 
-        // Yosys' own RTLIL frontend does the parsing -- writing a second `.il`
-        // parser on the MLIR side is exactly what linking the library avoids.
-        // Passing a non-null stream makes `frontend_call` ignore the filename,
-        // so the buffer lit hands us never has to reach the filesystem.
+        // Parse with Yosys' RTLIL frontend. With a stream, `frontend_call`
+        // ignores the filename and does not touch the filesystem.
         const auto *buffer =
             sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
         std::istringstream stream(buffer->getBuffer().str());
         std::istream *streamPtr = &stream;
 
         Yosys::RTLIL::Design design;
-        // A malformed `.il` reaches `log_error` and ends the process; the hook
-        // installed by `yosys::initialize()` is the only thing that gets a
-        // message out first.
+        // A malformed `.il` ends the process via `log_error`.
         Yosys::Frontend::frontend_call(
             &design, streamPtr, buffer->getBufferIdentifier().str(), "rtlil");
 

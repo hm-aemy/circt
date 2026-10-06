@@ -6,17 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Walks the RTLIL dialect into a `Yosys::RTLIL::Design`. The walk is
-// deliberately mechanical: the dialect already carries cell types, port names
-// and parameters in the shape Yosys wants, so there is no case per Comb or HW
-// operation here -- that knowledge lives in `convert-hw-to-rtlil`.
-//
-// The one thing this file does that its proof-of-concept predecessor did not is
-// check its input first. Yosys signals a duplicate name or a malformed
-// identifier with `log_error`, which ends the process; there is no way to catch
-// it and no diagnostic to show the user. So `validate()` runs to completion
-// before a single Yosys object is created, and everything it can reject becomes
-// an ordinary MLIR error.
+// Walks the RTLIL dialect into a `Yosys::RTLIL::Design`. Yosys reports bad
+// names with `log_error`, which ends the process, so `validate()` checks the
+// input before any Yosys object is created.
 //
 //===----------------------------------------------------------------------===//
 
@@ -52,9 +44,6 @@
 #include <string>
 #include <vector>
 
-// The Yosys headers come last, and everything below stays explicitly qualified
-// with `Yosys::`. Yosys' own sources use `USING_YOSYS_NAMESPACE`; an embedder
-// does not want that namespace pulled into its translation units.
 #include "kernel/rtlil.h"
 #include "kernel/yosys.h"
 
@@ -65,9 +54,7 @@ using namespace mlir;
 // Small helpers
 //===----------------------------------------------------------------------===//
 
-/// RTLIL identifiers carry their own escaping: the dialect stores names with
-/// the leading `\` (public) or `$` (auto-generated) that Yosys expects, so they
-/// go through unchanged. Only ever called on names `validate()` has accepted.
+/// Names keep their `\`/`$` sigil, so they pass through unchanged.
 static Yosys::RTLIL::IdString id(StringRef name) {
   return Yosys::RTLIL::IdString(std::string_view(name.data(), name.size()));
 }
@@ -91,8 +78,7 @@ static Yosys::RTLIL::State toState(rtlil::StateEnum state) {
 static std::vector<Yosys::RTLIL::State> toBits(rtlil::ConstAttr value) {
   std::vector<Yosys::RTLIL::State> bits;
   bits.reserve(value.size());
-  // Least significant bit first, the order both `#rtlil.const` and
-  // `RTLIL::Const` store.
+  // Least significant bit first, as `RTLIL::Const` stores it.
   for (rtlil::StateEnum bit : value.getBits())
     bits.push_back(toState(bit));
   return bits;
@@ -107,9 +93,7 @@ static Yosys::RTLIL::Const toConst(Attribute value,
   } else if (auto bitVector = dyn_cast<rtlil::ConstAttr>(value)) {
     result = Yosys::RTLIL::Const(toBits(bitVector));
   } else {
-    // Expand the APInt bit by bit rather than going through `getInt()`, which
-    // truncates -- and asserts -- above 64 bits. `$lut` masks are routinely
-    // wider than that.
+    // Iterate the APInt, since `getInt()` asserts above 64 bits.
     const llvm::APInt &intVal = cast<IntegerAttr>(value).getValue();
     std::vector<Yosys::RTLIL::State> bits;
     bits.reserve(intVal.getBitWidth());
@@ -123,18 +107,12 @@ static Yosys::RTLIL::Const toConst(Attribute value,
   return result;
 }
 
-/// Render `loc` in the `file:line.col-line.col` form Yosys uses for its `src`
-/// attribute, or the empty string when there is nothing to say. A `FusedLoc`
-/// becomes the `|`-joined form Yosys itself produces when a pass merges cells.
-///
-/// This is the only channel by which locations survive a Yosys script: between
-/// `exportRTLIL` and `importRTLIL` the design belongs to Yosys, and `src` is
-/// the one place it will carry them.
+/// Render `loc` as a Yosys `src` attribute: `file:line.col-line.col`, joined
+/// with `|` for a `FusedLoc`. Empty when there is no file location.
 static std::string getSrcAttribute(Location loc) {
   llvm::SmallVector<std::string> pieces;
   std::function<void(Location)> collect = [&](Location current) {
-    // Match the range, not `FileLineColLoc`: a point is the degenerate range
-    // and its end accessors return the start.
+    // A `FileLineColLoc` is a point range, so this matches both.
     if (auto fileLoc = dyn_cast<FileLineColRange>(current)) {
       pieces.push_back((fileLoc.getFilename().getValue() + ":" +
                         Twine(fileLoc.getStartLine()) + "." +
@@ -153,8 +131,7 @@ static std::string getSrcAttribute(Location loc) {
       collect(named.getChildLoc());
       return;
     }
-    // Only the callee: a flat `src` list cannot express a stack, and losing
-    // the frames beats losing the location. `circt.loc` keeps the whole one.
+    // A flat `src` cannot hold a stack; `circt.loc` keeps the full location.
     if (auto callsite = dyn_cast<CallSiteLoc>(current))
       collect(callsite.getCallee());
   };
@@ -162,11 +139,7 @@ static std::string getSrcAttribute(Location loc) {
   return llvm::join(pieces, "|");
 }
 
-/// A second copy of the location, in MLIR's own syntax.
-///
-/// `src` is what Yosys understands and propagates, but it flattens away a
-/// `NameLoc`'s name, a `CallSiteLoc`'s stack and a `FusedLoc`'s metadata.
-/// Yosys copies attribute dicts, so this rides along as far as `src` does.
+/// The full location in MLIR syntax, for what `src` cannot express.
 static constexpr StringRef circtLocAttrName = "\\circt.loc";
 
 static std::string getCirctLocAttribute(Location loc) {
@@ -184,36 +157,29 @@ class ModuleEmitter {
 public:
   ModuleEmitter(Yosys::RTLIL::Design *design) : design(design) {}
 
-  /// Check everything Yosys would react to fatally. Runs to completion before
-  /// any Yosys object exists.
+  /// Check everything Yosys would treat as fatal.
   LogicalResult validate(rtlil::ModuleOp op);
 
   /// Emit `op` into the design. Only valid after a successful `validate()`.
   LogicalResult emit(rtlil::ModuleOp op);
 
 private:
-  /// The signal a value stands for, building slices and concatenations on the
-  /// way. Memoized, so a shared sub-expression is walked once.
-  ///
-  /// Returns by value rather than by reference into `signals`: a nested lookup
-  /// can insert and so rehash the map, which would dangle a reference handed
-  /// out earlier in the same expression.
+  /// The memoized signal for `value`. Returns by value, as nested lookups may
+  /// rehash `signals`.
   std::optional<Yosys::RTLIL::SigSpec> lookup(Value value, Operation *user);
 
   LogicalResult emitWire(rtlil::WireOp op);
   LogicalResult emitConnection(rtlil::WConnectionOp op);
   LogicalResult emitCell(rtlil::CellOpInterface op);
 
-  /// Copy an `rtlil_attributes` dict onto a Yosys object, adding `src` from the
-  /// op's location.
+  /// Copy `attributes` onto `object` and add the location attributes.
   void setAttributes(Yosys::RTLIL::AttrObject *object, ArrayAttr attributes,
                      Location loc);
 
   Yosys::RTLIL::Design *design;
   Yosys::RTLIL::Module *module = nullptr;
   llvm::DenseMap<Value, Yosys::RTLIL::SigSpec> signals;
-  /// The values `lookup` is part-way through, to catch a cyclic slice/concat
-  /// chain: the body is a graph region, so nothing forbids one.
+  /// Values `lookup` is visiting, to detect cyclic slice/concat chains.
   llvm::DenseSet<Value> visiting;
 };
 } // namespace
@@ -224,18 +190,13 @@ private:
 
 LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
   StringRef name = op.getSymName();
-  if (!rtlil::isValidIdentifier(name))
-    return op.emitError("module name '")
-           << name
-           << "' is not a valid RTLIL identifier; it must start with '\\' or "
-              "'$' and contain no spaces or control characters";
+  if (failed(rtlil::verifyIdentifier(op, "module name", name)))
+    return failure();
   if (design->has(id(name)))
-    return op.emitError("design already contains a module named '")
-           << name << "'";
+    return op.emitOpError("redefines module '") << name << "'";
 
-  // Wires and cells share one namespace inside an `RTLIL::Module`. The dialect
-  // verifier checks this too, but the exporter must not depend on having been
-  // handed verified IR -- `circt-translate` can be given anything that parses.
+  // Repeats the dialect verifiers on purpose: callers of `exportRTLIL()` may
+  // pass unverified IR, and Yosys ends the process on a bad or duplicate name.
   llvm::DenseMap<StringRef, Operation *> declared;
   for (Operation &nested : op.getBodyBlock()->getOperations()) {
     StringRef declaredName;
@@ -246,12 +207,12 @@ LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
     else
       continue;
 
-    if (!rtlil::isValidIdentifier(declaredName))
-      return nested.emitError("name '")
-             << declaredName << "' is not a valid RTLIL identifier";
+    if (failed(rtlil::verifyIdentifier(&nested, "name", declaredName)))
+      return failure();
     auto [it, inserted] = declared.try_emplace(declaredName, &nested);
     if (!inserted) {
-      auto diag = nested.emitError("redeclares name '") << declaredName << "'";
+      auto diag = nested.emitOpError("redeclares name '")
+                  << declaredName << "'";
       diag.attachNote(it->second->getLoc())
           << "previously declared here; wires and cells share one namespace";
       return diag;
@@ -262,14 +223,13 @@ LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
   for (auto cell : op.getBodyBlock()->getOps<rtlil::CellOpInterface>()) {
     ArrayAttr ports = cell.getCellPorts();
     if (ports.size() != cell.getCellConnections().size())
-      return cell->emitError("cell has ")
+      return cell->emitOpError("has ")
              << ports.size() << " port names but "
              << cell.getCellConnections().size() << " connections";
     for (Attribute port : ports)
-      if (!rtlil::isValidIdentifier(cast<StringAttr>(port).getValue()))
-        return cell->emitError("port name '")
-               << cast<StringAttr>(port).getValue()
-               << "' is not a valid RTLIL identifier";
+      if (failed(rtlil::verifyIdentifier(cell, "port name",
+                                         cast<StringAttr>(port).getValue())))
+        return failure();
   }
 
   return success();
@@ -301,9 +261,7 @@ LogicalResult ModuleEmitter::emit(rtlil::ModuleOp op) {
   for (Attribute parameter : op.getAvailParameters())
     module->avail_parameters(id(cast<StringAttr>(parameter).getValue()));
 
-  // Two passes over the body. The region is a graph region, so a cell may
-  // precede the wire it drives; and even in a topologically sorted body a
-  // connection may name a wire declared later.
+  // Wires first, as cells and connections may precede the wires they use.
   for (Operation &nested : op.getBodyBlock()->getOperations())
     if (auto wire = dyn_cast<rtlil::WireOp>(nested))
       if (failed(emitWire(wire)))
@@ -320,13 +278,11 @@ LogicalResult ModuleEmitter::emit(rtlil::ModuleOp op) {
       if (failed(emitCell(cell)))
         return failure();
     } else {
-      return nested.emitError("no RTLIL mapping for this operation");
+      return nested.emitOpError("is not allowed in an RTLIL module");
     }
   }
 
-  // Collects the wires flagged as ports into `module->ports` and renumbers
-  // their `port_id`s. The dialect verifier guarantees the ids are already
-  // exactly 1..N, so this only builds the list.
+  // Builds `module->ports` from the port wires.
   module->fixup_ports();
   return success();
 }
@@ -353,15 +309,13 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
 
   Operation *definingOp = value.getDefiningOp();
   if (!definingOp) {
-    user->emitError("operand has no defining operation");
+    user->emitOpError("has an operand without a defining operation");
     return std::nullopt;
   }
 
   if (!visiting.insert(value).second) {
     auto diag =
-        definingOp->emitError("value is defined in terms of itself; the slice "
-                              "and concat chain feeding this operation is "
-                              "cyclic");
+        definingOp->emitOpError("is part of a cyclic slice/concat chain");
     diag.attachNote(user->getLoc()) << "cycle reached again from here";
     return std::nullopt;
   }
@@ -378,8 +332,7 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
         slice.getOffset(),
         cast<rtlil::MValueType>(slice.getResult().getType()).getWidth());
   } else if (auto concat = dyn_cast<rtlil::ConcatOp>(definingOp)) {
-    // `SigSpec::append` adds at the most significant end, and the operands are
-    // already ordered least significant first.
+    // Both are least significant first.
     for (Value input : concat.getInputs()) {
       auto piece = lookup(input, concat);
       if (!piece)
@@ -387,8 +340,8 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
       spec.append(*piece);
     }
   } else {
-    user->emitError("operand has no RTLIL signal; expected it to be defined by "
-                    "an rtlil.wire, rtlil.const, rtlil.slice or rtlil.concat");
+    user->emitOpError("has an operand not defined by 'rtlil.wire', "
+                      "'rtlil.const', 'rtlil.slice' or 'rtlil.concat'");
     return std::nullopt;
   }
 
@@ -421,10 +374,7 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
     cell->setParam(id(param.getName().getValue()),
                    toConst(param.getValue(), param.getFlags()));
   }
-  // Only `rtlil.cell` and `rtlil.instance` carry an attribute dict; the
-  // fixed-shape cell ops (`rtlil.and`, `rtlil.dff`, ...) have none, and still
-  // want `src` set from their location. Naming the two through their generated
-  // accessors keeps this from going stale if the attribute is ever renamed.
+  // Only `rtlil.cell` and `rtlil.instance` carry attributes.
   ArrayAttr attributes = ArrayAttr::get(op->getContext(), {});
   if (auto generic = dyn_cast<rtlil::CellOp>(op.getOperation()))
     attributes = generic.getRtlilAttributes();
@@ -440,18 +390,16 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
 
 LogicalResult circt::rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
                                         Yosys::RTLIL::Design *design) {
-  // Validate everything first: after the first `addModule()` a diagnostic can
-  // no longer leave `design` untouched.
+  // Validate everything first, so a failure leaves `design` untouched.
   ModuleEmitter validator(design);
   llvm::DenseMap<StringRef, Operation *> seen;
   for (auto nested : modules) {
     if (failed(validator.validate(nested)))
       return failure();
-    // `validate` only sees what is already in `design`, so duplicates *among*
-    // the modules being exported have to be caught here.
+    // Catch duplicates among the exported modules.
     auto [it, inserted] = seen.try_emplace(nested.getSymName(), nested);
     if (!inserted) {
-      auto diag = nested.emitError("design already contains a module named '")
+      auto diag = nested.emitOpError("redefines module '")
                   << nested.getSymName() << "'";
       diag.attachNote(it->second->getLoc()) << "previously defined here";
       return diag;
@@ -470,24 +418,19 @@ LogicalResult circt::rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
 // Translation Registration
 //===----------------------------------------------------------------------===//
 
-/// Reject a module that still holds hardware `exportRTLIL` would not export.
-///
-/// Anything `hw.module`-like is hardware by definition, so its absence from the
-/// `.il` changes what the design means. Metadata that carries none, an
-/// `om.class` or an `emit.file`, is dropped on purpose and stays unreported.
+/// Reject unconverted hardware modules. Other ops, like `om.class`, are
+/// dropped silently.
 static LogicalResult checkNothingHardwareIsDropped(mlir::ModuleOp module) {
   auto leftovers = llvm::to_vector(module.getOps<hw::HWModuleLike>());
   if (leftovers.empty())
     return success();
 
-  // `mlir::emitError` on the location rather than `module.emitError()`, whose
-  // "see current operation" note would quote the whole unconverted design.
+  // Not `module.emitError()`, which would print the whole design.
   auto diag = mlir::emitError(module.getLoc())
-              << "cannot export a design that is not fully converted: "
-              << leftovers.size() << " hardware module"
+              << "design contains " << leftovers.size()
+              << " unconverted hardware module"
               << (leftovers.size() == 1 ? "" : "s")
-              << " would be missing from the output; run "
-                 "'convert-hw-to-rtlil' first";
+              << "; run 'convert-hw-to-rtlil' first";
   for (auto leftover : leftovers)
     diag.attachNote(leftover.getLoc())
         << "'" << leftover.getModuleName() << "' is not an 'rtlil.module'";
@@ -505,22 +448,15 @@ void circt::rtlil::registerExportRTLILTranslation() {
           return module.emitError("failed to initialize Yosys: ")
                  << llvm::toString(std::move(error));
 
-        // The RTLIL backend announces itself on Yosys' log, which is stderr by
-        // default. A translation tool writes its result and nothing else, so
-        // keep that to ourselves; a fatal Yosys error still reaches stderr
-        // through `log_error_stderr`.
+        // Keep the backend's log off stderr. Fatal errors still get through.
         circt::yosys::LogCapture capture;
 
         Yosys::RTLIL::Design design;
-        // The `.il` holds the design and nothing else; the check above has
-        // established that nothing with hardware meaning is left behind.
         if (failed(exportRTLIL(
                 llvm::to_vector(module.getOps<rtlil::ModuleOp>()), &design)))
           return failure();
 
-        // Yosys' own RTLIL backend does the printing. It writes to a
-        // `std::ostream`, so the result is buffered and copied across rather
-        // than streamed.
+        // Print with Yosys' RTLIL backend, buffered via `std::ostream`.
         std::ostringstream stream;
         std::ostream *streamPtr = &stream;
         Yosys::Backend::backend_call(&design, streamPtr, "<stdout>", "rtlil");
@@ -528,13 +464,7 @@ void circt::rtlil::registerExportRTLILTranslation() {
         return success();
       },
       [](DialectRegistry &registry) {
-        // Registered here is the language of the input file, not the one
-        // dialect the translation consumes. `convert-hw-to-rtlil` rewrites comb
-        // and seq and leaves everything else alone, so a real file still
-        // carries the metadata firtool emits beside the hardware, and the
-        // hardware dialects themselves when the conversion was partial.
-        // Registering rtlil alone made that fail to parse; the generic syntax
-        // is no way out, since `om.class` has a custom assembly format.
+        // Accept the other dialects a converted firtool output may contain.
         registry.insert<circt::rtlil::RTLILDialect, circt::hw::HWDialect,
                         circt::comb::CombDialect, circt::seq::SeqDialect,
                         circt::sv::SVDialect, circt::sim::SimDialect,

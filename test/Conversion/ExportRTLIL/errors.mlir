@@ -52,7 +52,7 @@ rtlil.module @"\\dup" {
 // stack ran out.
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[4]>
-  // expected-error@+1 {{value is defined in terms of itself}}
+  // expected-error@+1 {{'rtlil.slice' op is part of a cyclic slice/concat chain}}
   %s = "rtlil.slice"(%c) <{offset = 0 : i32}> : (!rtlil<val[4]>) -> !rtlil<val[4]>
   // expected-note@+1 {{cycle reached again from here}}
   %c = "rtlil.concat"(%s) : (!rtlil<val[4]>) -> !rtlil<val[4]>

@@ -6,7 +6,7 @@
 // a right one, so the translation refuses and names what would go missing.
 // Metadata with no hardware meaning is dropped without comment.
 
-// CHECK: error: cannot export a design that is not fully converted: 2 hardware modules would be missing from the output; run 'convert-hw-to-rtlil' first
+// CHECK: error: design contains 2 unconverted hardware modules; run 'convert-hw-to-rtlil' first
 // CHECK-DAG: note: 'unconverted' is not an 'rtlil.module'
 // CHECK-DAG: note: 'blackbox' is not an 'rtlil.module'
 // CHECK-NOT: 'leftovers_Class'
