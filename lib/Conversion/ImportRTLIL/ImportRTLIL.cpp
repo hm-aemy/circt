@@ -389,7 +389,7 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
   Location loc = importLocation(*source);
   StringRef name = toStringRef(source->name);
 
-  // Reject rather than silently drop processes and memories.
+  // Reject rather than silently drop processes, memories and bindings.
   if (!source->processes.empty())
     return mlir::emitError(loc)
            << "module '" << name << "' contains processes; run 'proc' first";
@@ -397,6 +397,8 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
     return mlir::emitError(loc) << "module '" << name
                                 << "' contains memories; run 'memory_collect' "
                                    "or 'memory_map' first";
+  if (!source->bindings_.empty())
+    return mlir::emitError(loc) << "module '" << name << "' contains bindings";
 
   auto attributes = importAttributes(*source, loc);
   if (failed(attributes))
