@@ -59,7 +59,7 @@ static constexpr StringRef circtLocAttrName = "\\circt.loc";
 namespace {
 class Importer {
 public:
-  Importer(mlir::ModuleOp module)
+  explicit Importer(mlir::ModuleOp module)
       : context(module.getContext()), module(module),
         builder(OpBuilder::atBlockEnd(module.getBody())) {}
 

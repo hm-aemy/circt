@@ -40,6 +40,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <functional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -155,7 +156,7 @@ namespace {
 /// Translates the ops of one `rtlil.module` into a Yosys module.
 class ModuleEmitter {
 public:
-  ModuleEmitter(Yosys::RTLIL::Design *design) : design(design) {}
+  explicit ModuleEmitter(Yosys::RTLIL::Design *design) : design(design) {}
 
   /// Check everything Yosys would treat as fatal.
   LogicalResult validate(rtlil::ModuleOp op);
