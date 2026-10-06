@@ -45,20 +45,18 @@
 #include <string>
 #include <vector>
 
+#include "circt/Yosys/RTLILUtils.h"
 #include "kernel/rtlil.h"
 #include "kernel/yosys.h"
 
 using namespace circt;
 using namespace mlir;
+using circt::yosys::circtLocAttrName;
+using circt::yosys::toIdString;
 
 //===----------------------------------------------------------------------===//
 // Small helpers
 //===----------------------------------------------------------------------===//
-
-/// Names keep their `\`/`$` sigil, so they pass through unchanged.
-static Yosys::RTLIL::IdString id(StringRef name) {
-  return Yosys::RTLIL::IdString(std::string_view(name.data(), name.size()));
-}
 
 static Yosys::RTLIL::State toState(rtlil::StateEnum state) {
   switch (state) {
@@ -140,9 +138,6 @@ static std::string getSrcAttribute(Location loc) {
   return llvm::join(pieces, "|");
 }
 
-/// The full location in MLIR syntax, for what `src` cannot express.
-static constexpr StringRef circtLocAttrName = "\\circt.loc";
-
 static std::string getCirctLocAttribute(Location loc) {
   if (isa<UnknownLoc>(loc))
     return {};
@@ -193,7 +188,7 @@ LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
   StringRef name = op.getSymName();
   if (failed(rtlil::verifyIdentifier(op, "module name", name)))
     return failure();
-  if (design->has(id(name)))
+  if (design->has(toIdString(name)))
     return op.emitOpError("redefines module '") << name << "'";
 
   // Repeats the dialect verifiers on purpose: callers of `exportRTLIL()` may
@@ -244,7 +239,7 @@ void ModuleEmitter::setAttributes(Yosys::RTLIL::AttrObject *object,
                                   ArrayAttr attributes, Location loc) {
   for (Attribute entry : attributes) {
     auto parameter = cast<rtlil::ParameterAttr>(entry);
-    object->attributes[id(parameter.getName().getValue())] =
+    object->attributes[toIdString(parameter.getName().getValue())] =
         toConst(parameter.getValue(), parameter.getFlags());
   }
   std::string src = getSrcAttribute(loc);
@@ -252,15 +247,16 @@ void ModuleEmitter::setAttributes(Yosys::RTLIL::AttrObject *object,
     object->set_src_attribute(src);
   std::string exact = getCirctLocAttribute(loc);
   if (!exact.empty())
-    object->set_string_attribute(id(circtLocAttrName), exact);
+    object->set_string_attribute(toIdString(circtLocAttrName), exact);
 }
 
 LogicalResult ModuleEmitter::emit(rtlil::ModuleOp op) {
-  module = design->addModule(id(op.getSymName()));
+  module = design->addModule(toIdString(op.getSymName()));
   signals.clear();
   setAttributes(module, op.getRtlilAttributes(), op.getLoc());
   for (Attribute parameter : op.getAvailParameters())
-    module->avail_parameters(id(cast<StringAttr>(parameter).getValue()));
+    module->avail_parameters(
+        toIdString(cast<StringAttr>(parameter).getValue()));
 
   // Wires first, as cells and connections may precede the wires they use.
   for (Operation &nested : op.getBodyBlock()->getOperations())
@@ -290,7 +286,7 @@ LogicalResult ModuleEmitter::emit(rtlil::ModuleOp op) {
 
 LogicalResult ModuleEmitter::emitWire(rtlil::WireOp op) {
   auto *wire = module->addWire(
-      id(op.getName()),
+      toIdString(op.getName()),
       cast<rtlil::MValueType>(op.getResult().getType()).getWidth());
   wire->port_id = op.getPortId();
   wire->port_input = op.getPortInput();
@@ -363,16 +359,17 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
   ArrayAttr ports = op.getCellPorts();
   OperandRange connections = op.getCellConnections();
 
-  auto *cell = module->addCell(id(op.getCellName()), id(op.getCellType()));
+  auto *cell = module->addCell(toIdString(op.getCellName()),
+                               toIdString(op.getCellType()));
   for (auto [port, value] : llvm::zip(ports, connections)) {
     auto signal = lookup(value, op);
     if (!signal)
       return failure();
-    cell->setPort(id(cast<StringAttr>(port).getValue()), *signal);
+    cell->setPort(toIdString(cast<StringAttr>(port).getValue()), *signal);
   }
   for (Attribute parameter : op.getCellParameters()) {
     auto param = cast<rtlil::ParameterAttr>(parameter);
-    cell->setParam(id(param.getName().getValue()),
+    cell->setParam(toIdString(param.getName().getValue()),
                    toConst(param.getValue(), param.getFlags()));
   }
   // Only `rtlil.cell` and `rtlil.instance` carry attributes.

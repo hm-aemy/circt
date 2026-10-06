@@ -33,28 +33,19 @@
 #include <sstream>
 #include <string>
 
+#include "circt/Yosys/RTLILUtils.h"
 #include "kernel/rtlil.h"
 #include "kernel/yosys.h"
 
 using namespace circt;
 using namespace mlir;
+using circt::yosys::circtLocAttrName;
+using circt::yosys::toIdString;
+using circt::yosys::toStringRef;
 
 //===----------------------------------------------------------------------===//
 // Helpers
 //===----------------------------------------------------------------------===//
-
-/// An `RTLIL::IdString` as a `StringRef`, sigil included.
-static StringRef toStringRef(const Yosys::RTLIL::IdString &name) {
-  const char *cstr = name.c_str();
-  return StringRef(cstr);
-}
-
-static Yosys::RTLIL::IdString id(StringRef name) {
-  return Yosys::RTLIL::IdString(std::string_view(name.data(), name.size()));
-}
-
-/// Must match `circtLocAttrName` in ExportRTLIL.cpp, the only writer.
-static constexpr StringRef circtLocAttrName = "\\circt.loc";
 
 namespace {
 class Importer {
@@ -148,7 +139,7 @@ static std::optional<SrcPiece> parseSrcPiece(StringRef piece) {
 
 Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
   // Prefer `\circt.loc`; cells Yosys created only have `src`.
-  auto exact = object.attributes.find(id(circtLocAttrName));
+  auto exact = object.attributes.find(toIdString(circtLocAttrName));
   if (exact != object.attributes.end()) {
     std::string text = exact->second.decode_string();
     mlir::ScopedDiagnosticHandler quiet(context,
@@ -263,7 +254,7 @@ Importer::importAttributes(const Yosys::RTLIL::AttrObject &object,
   SmallVector<std::pair<StringRef, const Yosys::RTLIL::Const *>> sorted;
   for (const auto &[name, value] : object.attributes) {
     // Both become the op's Location, and export re-derives them from it.
-    if (name == Yosys::ID::src || name == id(circtLocAttrName))
+    if (name == Yosys::ID::src || name == toIdString(circtLocAttrName))
       continue;
     sorted.emplace_back(toStringRef(name), &value);
   }
