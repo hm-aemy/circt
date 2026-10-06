@@ -17,7 +17,6 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/FormatVariadic.h"
-#include <atomic>
 
 namespace circt::HWToRTLIL {
 
@@ -49,7 +48,7 @@ inline static OpType lookupSymbolWalkTables(mlir::Operation *from,
 
 struct ConversionPatternContext {
   /// Counter for auto-generated `$<n>` names, global across all modules.
-  std::atomic<unsigned int> nameCtr = 0;
+  unsigned nameCtr = 0;
 };
 
 class RTLILTypeConverter : public mlir::TypeConverter {
