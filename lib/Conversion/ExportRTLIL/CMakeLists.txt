@@ -8,8 +8,8 @@ add_circt_translation_library(CIRCTExportRTLIL
 
   # `add_dependencies()` on the imported target only reaches targets that link
   # it, which does not include the `obj.*` object library `llvm_add_library()`
-  # creates -- it would try to compile against headers Yosys has not installed
-  # yet. `DEPENDS` is applied to both.
+  # creates (it would try to compile against headers Yosys has not installed
+  # yet). `DEPENDS` is applied to both.
   DEPENDS
   yosys_external
 

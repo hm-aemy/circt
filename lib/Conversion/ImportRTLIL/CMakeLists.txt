@@ -6,8 +6,9 @@ include(YosysCompilerOptions)
 add_circt_translation_library(CIRCTImportRTLIL
   ImportRTLIL.cpp
 
-  # See `lib/Yosys/CMakeLists.txt`: `add_dependencies()` on the imported target
-  # does not reach the `obj.*` object library that actually compiles this.
+  # See `lib/Conversion/ExportRTLIL/CMakeLists.txt`: `add_dependencies()` on
+  # the imported target does not reach the `obj.*` object library that
+  # actually compiles this.
   DEPENDS
   yosys_external
 

@@ -567,8 +567,8 @@ if(CIRCT_YOSYS_LIB_ENABLED)
       "${CIRCT_YOSYS_SOURCE_DIR}")
   endif()
 
-  # Yosys is built the way slang is -- by CIRCT, so that nothing has to be
-  # located or built by hand -- but through `ExternalProject_Add` rather than
+  # Yosys is built the way slang is (by CIRCT, so that nothing has to be
+  # located or built by hand), but through `ExternalProject_Add` rather than
   # `FetchContent`. Yosys assumes it is the top-level project (it resolves its
   # own paths against `CMAKE_SOURCE_DIR`) and vendors slang, fmt, and
   # tomlplusplus under target names CIRCT also uses, so it cannot be pulled in
@@ -589,8 +589,8 @@ if(CIRCT_YOSYS_LIB_ENABLED)
   #
   # `libyosys` stays *shared*. A static one gets no CMake package from Yosys,
   # needs whole-archive linking (passes register themselves through static
-  # constructors), and would put its private dependencies -- including a second
-  # copy of fmt, which CIRCT already gets via slang -- into CIRCT's binaries.
+  # constructors), and would put its private dependencies (including a second
+  # copy of fmt, which CIRCT already gets via slang) into CIRCT's binaries.
   include(ExternalProject)
 
   set(CIRCT_YOSYS_PREFIX ${CMAKE_BINARY_DIR})
@@ -669,7 +669,7 @@ if(CIRCT_YOSYS_LIB_ENABLED)
   # The build-tree RPATH has to be spelled out rather than left to
   # `CMAKE_INSTALL_RPATH_USE_LINK_PATH`: CMake derives that entry from the
   # linked library's install name, which means reading the file at *generate*
-  # time -- and ExternalProject only produces `libyosys` later, during the
+  # time, and ExternalProject only produces `libyosys` later, during the
   # build. On a fresh configure the entry is silently dropped and the binaries
   # fail to launch, until some unrelated re-generation happens to run with the
   # library in place.

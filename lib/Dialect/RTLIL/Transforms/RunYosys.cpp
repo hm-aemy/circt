@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The payoff of linking libyosys: export the RTLIL dialect to a real
-// `RTLIL::Design`, run a Yosys script over it, and read the result back, all in
-// one address space with no file in between.
+// Exports the RTLIL dialect to an in-memory `RTLIL::Design`, runs a Yosys
+// script over it, and imports the result back, without writing any files.
 //
-// Most of the work here is defending against how Yosys reports failure. In
-// descending order of how much it buys:
+// Yosys reports failures in three ways, handled as follows:
 //
 //   1. `exportRTLIL` validates the IR before creating any Yosys object, so the
 //      common failures are ordinary MLIR diagnostics.
@@ -86,8 +84,8 @@ void RunYosysPass::runOnOperation() {
 /// Split the supplied script into commands and run each one.
 /// This follows the loop Yosys uses and reuses `next_token`.
 ///
-///   - Commands end with newline or a word ending with `;`. When the `;`
-///   is within a word, it does not split. Needed for `abc -script +strash;dc2`.
+///   - Commands end with a newline or with a word ending in `;`. A `;` inside
+///     a word does not split, which `abc -script +strash;dc2` needs.
 ///   - `;;` and `;;;` as shorthand for `clean` and `clean -purge`.
 ///   - `#` starts a comment that runs to the end of the line.
 ///   - A double-quoted string is one word, even if it contains a `;`.
