@@ -316,7 +316,7 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
     diag.attachNote(user->getLoc()) << "cycle reached again from here";
     return std::nullopt;
   }
-  auto leaveScope = llvm::make_scope_exit([&] { visiting.erase(value); });
+  llvm::scope_exit leaveScope([&] { visiting.erase(value); });
 
   Yosys::RTLIL::SigSpec spec;
   if (auto constant = dyn_cast<rtlil::ConstOp>(definingOp)) {
