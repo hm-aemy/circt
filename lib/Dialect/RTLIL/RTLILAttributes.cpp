@@ -16,7 +16,6 @@
 
 using namespace circt;
 using namespace circt::rtlil;
-using namespace mlir;
 
 #define GET_ATTRDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILAttributes.cpp.inc"
@@ -109,7 +108,7 @@ void ConstAttr::print(AsmPrinter &printer) const {
 // ParameterAttr
 //===----------------------------------------------------------------------===//
 
-ArrayAttr circt::rtlil::createParamArrayAttr(
+ArrayAttr rtlil::createParamArrayAttr(
     MLIRContext *context,
     ArrayRef<std::tuple<StringRef, unsigned, uint64_t>> params) {
   SmallVector<Attribute, 5> attrs;
@@ -119,7 +118,7 @@ ArrayAttr circt::rtlil::createParamArrayAttr(
 }
 
 LogicalResult
-ParameterAttr::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
+ParameterAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                       StringAttr name, Attribute value,
                       std::optional<uint16_t> flags) {
   if (failed(verifyIdentifier(emitError, "parameter name",

@@ -27,9 +27,9 @@ namespace circt::rtlil {
 
 /// Builds a `#rtlil.param` array from `(name, width, value)` triples. Used by
 /// the generated code of `ParamArrayAttr` and the typed cell ops.
-mlir::ArrayAttr createParamArrayAttr(
-    mlir::MLIRContext *context,
-    llvm::ArrayRef<std::tuple<llvm::StringRef, unsigned, uint64_t>> params);
+ArrayAttr createParamArrayAttr(
+    MLIRContext *context,
+    ArrayRef<std::tuple<StringRef, unsigned, uint64_t>> params);
 
 } // namespace circt::rtlil
 

@@ -39,9 +39,9 @@
 
 using namespace circt;
 using namespace mlir;
-using circt::yosys::circtLocAttrName;
-using circt::yosys::toIdString;
-using circt::yosys::toStringRef;
+using yosys::circtLocAttrName;
+using yosys::toIdString;
+using yosys::toStringRef;
 
 //===----------------------------------------------------------------------===//
 // Helpers
@@ -89,9 +89,9 @@ private:
   OpBuilder builder;
 
   /// Wires of the module currently being imported.
-  llvm::DenseMap<Yosys::RTLIL::Wire *, Value> wireValues;
+  DenseMap<Yosys::RTLIL::Wire *, Value> wireValues;
   /// Module names in the design, so a cell can be recognized as an instance.
-  llvm::DenseSet<StringRef> moduleNames;
+  DenseSet<StringRef> moduleNames;
 };
 } // namespace
 
@@ -142,10 +142,10 @@ Location Importer::importLocation(const Yosys::RTLIL::AttrObject &object) {
   auto exact = object.attributes.find(toIdString(circtLocAttrName));
   if (exact != object.attributes.end()) {
     std::string text = exact->second.decode_string();
-    mlir::ScopedDiagnosticHandler quiet(context,
-                                        [](Diagnostic &) { return success(); });
+    ScopedDiagnosticHandler quiet(context,
+                                  [](Diagnostic &) { return success(); });
     if (auto attr = dyn_cast_or_null<LocationAttr>(
-            mlir::parseAttribute(text, context, /*type=*/nullptr)))
+            parseAttribute(text, context, /*type=*/nullptr)))
       return Location(attr);
   }
 
@@ -226,7 +226,7 @@ FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
       llvm::all_of(rawBits, [](Yosys::RTLIL::State bit) {
         return bit == Yosys::RTLIL::State::S0 || bit == Yosys::RTLIL::State::S1;
       })) {
-    llvm::APInt intVal(rawBits.size(), 0);
+    APInt intVal(rawBits.size(), 0);
     for (unsigned i = 0, e = rawBits.size(); i != e; ++i)
       if (rawBits[i] == Yosys::RTLIL::State::S1)
         intVal.setBit(i);
@@ -459,8 +459,8 @@ LogicalResult Importer::importDesign(Yosys::RTLIL::Design *design) {
 // Entry point
 //===----------------------------------------------------------------------===//
 
-LogicalResult circt::rtlil::importRTLIL(Yosys::RTLIL::Design *design,
-                                        mlir::ModuleOp module) {
+LogicalResult rtlil::importRTLIL(Yosys::RTLIL::Design *design,
+                                 mlir::ModuleOp module) {
   module.getContext()->loadDialect<rtlil::RTLILDialect>();
   Importer importer(module);
   return importer.importDesign(design);
@@ -470,12 +470,12 @@ LogicalResult circt::rtlil::importRTLIL(Yosys::RTLIL::Design *design,
 // Translation Registration
 //===----------------------------------------------------------------------===//
 
-void circt::rtlil::registerImportRTLILTranslation() {
-  static mlir::TranslateToMLIRRegistration fromRTLIL(
+void rtlil::registerImportRTLILTranslation() {
+  static TranslateToMLIRRegistration fromRTLIL(
       "import-rtlil", "import an RTLIL (.il) file",
       [](llvm::SourceMgr &sourceMgr,
          MLIRContext *context) -> OwningOpRef<mlir::ModuleOp> {
-        if (auto error = circt::yosys::initialize()) {
+        if (auto error = yosys::initialize()) {
           mlir::emitError(UnknownLoc::get(context))
               << "failed to initialize Yosys: "
               << llvm::toString(std::move(error));
@@ -483,7 +483,7 @@ void circt::rtlil::registerImportRTLILTranslation() {
         }
 
         // Keep the frontend's log off stderr. Fatal errors still get through.
-        circt::yosys::LogCapture capture;
+        yosys::LogCapture capture;
 
         // Parse with Yosys' RTLIL frontend. With a stream, `frontend_call`
         // ignores the filename and does not touch the filesystem.
@@ -504,6 +504,6 @@ void circt::rtlil::registerImportRTLILTranslation() {
         return module;
       },
       [](DialectRegistry &registry) {
-        registry.insert<circt::rtlil::RTLILDialect>();
+        registry.insert<rtlil::RTLILDialect>();
       });
 }

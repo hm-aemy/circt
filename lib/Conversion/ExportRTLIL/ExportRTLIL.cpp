@@ -51,8 +51,8 @@
 
 using namespace circt;
 using namespace mlir;
-using circt::yosys::circtLocAttrName;
-using circt::yosys::toIdString;
+using yosys::circtLocAttrName;
+using yosys::toIdString;
 
 //===----------------------------------------------------------------------===//
 // Small helpers
@@ -93,7 +93,7 @@ static Yosys::RTLIL::Const toConst(Attribute value,
     result = Yosys::RTLIL::Const(toBits(bitVector));
   } else {
     // Iterate the APInt, since `getInt()` asserts above 64 bits.
-    const llvm::APInt &intVal = cast<IntegerAttr>(value).getValue();
+    const APInt &intVal = cast<IntegerAttr>(value).getValue();
     std::vector<Yosys::RTLIL::State> bits;
     bits.reserve(intVal.getBitWidth());
     for (unsigned i = 0, e = intVal.getBitWidth(); i != e; ++i)
@@ -109,7 +109,7 @@ static Yosys::RTLIL::Const toConst(Attribute value,
 /// Render `loc` as a Yosys `src` attribute: `file:line.col-line.col`, joined
 /// with `|` for a `FusedLoc`. Empty when there is no file location.
 static std::string getSrcAttribute(Location loc) {
-  llvm::SmallVector<std::string> pieces;
+  SmallVector<std::string> pieces;
   std::function<void(Location)> collect = [&](Location current) {
     // A `FileLineColLoc` is a point range, so this matches both.
     if (auto fileLoc = dyn_cast<FileLineColRange>(current)) {
@@ -174,9 +174,9 @@ private:
 
   Yosys::RTLIL::Design *design;
   Yosys::RTLIL::Module *module = nullptr;
-  llvm::DenseMap<Value, Yosys::RTLIL::SigSpec> signals;
+  DenseMap<Value, Yosys::RTLIL::SigSpec> signals;
   /// Values `lookup` is visiting, to detect cyclic slice/concat chains.
-  llvm::DenseSet<Value> visiting;
+  DenseSet<Value> visiting;
 };
 } // namespace
 
@@ -193,7 +193,7 @@ LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
 
   // Repeats the dialect verifiers on purpose: callers of `exportRTLIL()` may
   // pass unverified IR, and Yosys ends the process on a bad or duplicate name.
-  llvm::DenseMap<StringRef, Operation *> declared;
+  DenseMap<StringRef, Operation *> declared;
   for (Operation &nested : op.getBodyBlock()->getOperations()) {
     StringRef declaredName;
     if (auto wire = dyn_cast<rtlil::WireOp>(nested))
@@ -386,12 +386,12 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
 // Entry points
 //===----------------------------------------------------------------------===//
 
-LogicalResult circt::rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
-                                        Yosys::RTLIL::Design *design) {
+LogicalResult rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
+                                 Yosys::RTLIL::Design *design) {
   // Validate all modules first, so nothing Yosys treats as fatal reaches it.
   // Emission can still fail and leave partial modules in `design`.
   ModuleEmitter validator(design);
-  llvm::DenseMap<StringRef, Operation *> seen;
+  DenseMap<StringRef, Operation *> seen;
   for (auto nested : modules) {
     if (failed(validator.validate(nested)))
       return failure();
@@ -436,19 +436,19 @@ static LogicalResult checkNothingHardwareIsDropped(mlir::ModuleOp module) {
   return failure();
 }
 
-void circt::rtlil::registerExportRTLILTranslation() {
-  static mlir::TranslateFromMLIRRegistration toRTLIL(
+void rtlil::registerExportRTLILTranslation() {
+  static TranslateFromMLIRRegistration toRTLIL(
       "export-rtlil", "export the RTLIL dialect as an RTLIL (.il) file",
-      [](mlir::ModuleOp module, llvm::raw_ostream &os) -> LogicalResult {
+      [](mlir::ModuleOp module, raw_ostream &os) -> LogicalResult {
         if (failed(checkNothingHardwareIsDropped(module)))
           return failure();
 
-        if (auto error = circt::yosys::initialize())
+        if (auto error = yosys::initialize())
           return module.emitError("failed to initialize Yosys: ")
                  << llvm::toString(std::move(error));
 
         // Keep the backend's log off stderr. Fatal errors still get through.
-        circt::yosys::LogCapture capture;
+        yosys::LogCapture capture;
 
         Yosys::RTLIL::Design design;
         if (failed(exportRTLIL(
@@ -464,11 +464,9 @@ void circt::rtlil::registerExportRTLILTranslation() {
       },
       [](DialectRegistry &registry) {
         // Accept the other dialects a converted firtool output may contain.
-        registry.insert<circt::rtlil::RTLILDialect, circt::hw::HWDialect,
-                        circt::comb::CombDialect, circt::seq::SeqDialect,
-                        circt::sv::SVDialect, circt::sim::SimDialect,
-                        circt::verif::VerifDialect, circt::ltl::LTLDialect,
-                        circt::om::OMDialect, circt::emit::EmitDialect,
-                        circt::debug::DebugDialect>();
+        registry.insert<rtlil::RTLILDialect, hw::HWDialect, comb::CombDialect,
+                        seq::SeqDialect, sv::SVDialect, sim::SimDialect,
+                        verif::VerifDialect, ltl::LTLDialect, om::OMDialect,
+                        emit::EmitDialect, debug::DebugDialect>();
       });
 }

@@ -18,7 +18,7 @@
 namespace circt::rtlil {
 
 /// The `CellOpInterface` verifier, called from the generated code below.
-mlir::LogicalResult verifyCellOpInterface(mlir::Operation *op);
+LogicalResult verifyCellOpInterface(Operation *op);
 
 } // namespace circt::rtlil
 

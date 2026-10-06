@@ -15,12 +15,13 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-using namespace mlir;
+using namespace circt;
+using namespace circt::rtlil;
 
 #define GET_TYPEDEF_CLASSES
 #include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
 
-void circt::rtlil::RTLILDialect::registerTypes() {
+void RTLILDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "circt/Dialect/RTLIL/RTLILTypes.cpp.inc"
@@ -30,8 +31,7 @@ void circt::rtlil::RTLILDialect::registerTypes() {
 // Follow Yosys RTLIL conventions.
 // Identifiers start with either `\` or `$`.
 // Characters at or below space `' '` are not allowed.
-namespace circt::rtlil {
-bool isValidIdentifier(llvm::StringRef name) {
+bool rtlil::isValidIdentifier(StringRef name) {
   if (name.empty() || (name.front() != '\\' && name.front() != '$'))
     return false;
   return llvm::none_of(name, [](char c) {
@@ -40,8 +40,8 @@ bool isValidIdentifier(llvm::StringRef name) {
 }
 
 LogicalResult
-verifyIdentifier(llvm::function_ref<InFlightDiagnostic()> emitError,
-                 llvm::StringRef kind, llvm::StringRef name) {
+rtlil::verifyIdentifier(function_ref<InFlightDiagnostic()> emitError,
+                        StringRef kind, StringRef name) {
   if (isValidIdentifier(name))
     return success();
   return emitError() << kind << " '" << name
@@ -50,8 +50,7 @@ verifyIdentifier(llvm::function_ref<InFlightDiagnostic()> emitError,
                         "characters";
 }
 
-LogicalResult verifyIdentifier(Operation *op, llvm::StringRef kind,
-                               llvm::StringRef name) {
+LogicalResult rtlil::verifyIdentifier(Operation *op, StringRef kind,
+                                      StringRef name) {
   return verifyIdentifier([op] { return op->emitOpError(); }, kind, name);
 }
-} // namespace circt::rtlil

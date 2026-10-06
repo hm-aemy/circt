@@ -65,8 +65,8 @@ using namespace circt;
 using namespace mlir;
 
 namespace {
-struct RunYosysPass : public circt::rtlil::impl::RunYosysBase<RunYosysPass> {
-  using circt::rtlil::impl::RunYosysBase<RunYosysPass>::RunYosysBase;
+struct RunYosysPass : public rtlil::impl::RunYosysBase<RunYosysPass> {
+  using rtlil::impl::RunYosysBase<RunYosysPass>::RunYosysBase;
   void runOnOperation() override;
 };
 } // namespace
@@ -136,7 +136,7 @@ void RunYosysPass::runOnOperation() {
   static std::mutex yosysMutex;
   std::lock_guard<std::mutex> guard(yosysMutex);
 
-  if (auto error = circt::yosys::initialize()) {
+  if (auto error = yosys::initialize()) {
     module.emitError("failed to initialize Yosys: ")
         << llvm::toString(std::move(error));
     return signalPassFailure();
@@ -156,8 +156,8 @@ void RunYosysPass::runOnOperation() {
 
   // Only process `rtlil.module`s.
   Yosys::RTLIL::Design design;
-  auto exported = llvm::to_vector(module.getOps<circt::rtlil::ModuleOp>());
-  if (failed(circt::rtlil::exportRTLIL(exported, &design)))
+  auto exported = llvm::to_vector(module.getOps<rtlil::ModuleOp>());
+  if (failed(rtlil::exportRTLIL(exported, &design)))
     return signalPassFailure();
 
   std::vector<std::string> commands;
@@ -168,10 +168,9 @@ void RunYosysPass::runOnOperation() {
   llvm::append_range(commands, scriptCommands);
 
   // Collect error messages from caught failures in `YosysScript.cpp`.
-  circt::yosys::LogCapture capture(quiet);
+  yosys::LogCapture capture(quiet);
   std::string failedCommand, error;
-  if (!circt::rtlil::detail::runYosysScript(commands, &design, failedCommand,
-                                            error)) {
+  if (!rtlil::detail::runYosysScript(commands, &design, failedCommand, error)) {
     auto diag = module.emitError("Yosys command '")
                 << failedCommand << "' failed: " << error;
     if (std::string log = capture.str(); !log.empty())
@@ -186,7 +185,7 @@ void RunYosysPass::runOnOperation() {
 
   // Import all modules from the design. A failure leaves the IR without them,
   // which is fine since the pass fails and the IR is discarded.
-  if (failed(circt::rtlil::importRTLIL(&design, module)))
+  if (failed(rtlil::importRTLIL(&design, module)))
     return signalPassFailure();
 }
 

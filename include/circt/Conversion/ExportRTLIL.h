@@ -50,8 +50,8 @@ class ModuleOp;
 /// identifier by ending the process, so any such problem has to become an MLIR
 /// diagnostic before the first `addModule()` call. Returns failure after
 /// emitting a diagnostic; on failure `design` may hold partially built modules.
-mlir::LogicalResult exportRTLIL(llvm::ArrayRef<rtlil::ModuleOp> modules,
-                                Yosys::RTLIL::Design *design);
+LogicalResult exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
+                          Yosys::RTLIL::Design *design);
 
 /// Register the `export-rtlil` translation, which writes a `.il` file through
 /// Yosys' own RTLIL backend.

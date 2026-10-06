@@ -13,7 +13,7 @@
 #include "circt/Dialect/RTLIL/RTLILOpInterfaces.cpp.inc"
 
 using namespace circt;
-using namespace mlir;
+using namespace circt::rtlil;
 
 LogicalResult rtlil::verifyCellOpInterface(Operation *op) {
   auto cell = cast<CellOpInterface>(op);

@@ -25,15 +25,13 @@ namespace circt::rtlil {
 /// Whether `name` is a valid RTLIL identifier: non-empty, starting with `\`
 /// (public) or `$` (generated), and without spaces or control characters.
 /// Yosys aborts on an invalid name, so the dialect has to reject it first.
-bool isValidIdentifier(llvm::StringRef name);
+bool isValidIdentifier(StringRef name);
 
 /// Verify that `name` is a valid RTLIL identifier. `kind` names what is being
 /// checked (e.g. "module name") in the diagnostic.
-LogicalResult
-verifyIdentifier(llvm::function_ref<InFlightDiagnostic()> emitError,
-                 llvm::StringRef kind, llvm::StringRef name);
-LogicalResult verifyIdentifier(Operation *op, llvm::StringRef kind,
-                               llvm::StringRef name);
+LogicalResult verifyIdentifier(function_ref<InFlightDiagnostic()> emitError,
+                               StringRef kind, StringRef name);
+LogicalResult verifyIdentifier(Operation *op, StringRef kind, StringRef name);
 
 } // namespace circt::rtlil
 

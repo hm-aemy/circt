@@ -36,8 +36,7 @@ namespace rtlil {
 /// Constructs that the dialect cannot represent (processes, memories and
 /// bindings) are reported as errors rather than dropped, since dropping them
 /// would silently change the design's meaning.
-mlir::LogicalResult importRTLIL(Yosys::RTLIL::Design *design,
-                                mlir::ModuleOp module);
+LogicalResult importRTLIL(Yosys::RTLIL::Design *design, mlir::ModuleOp module);
 
 /// Register the `import-rtlil` translation, which reads a `.il` file through
 /// Yosys' own RTLIL frontend.

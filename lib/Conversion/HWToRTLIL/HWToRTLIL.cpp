@@ -40,7 +40,6 @@ namespace circt {
 } // namespace circt
 
 using namespace circt;
-using namespace comb;
 
 // TODO: Add a proper scoping mechanism to map symbols to global RTLIL names,
 // likely a symbol table walk with prefixes.
@@ -49,25 +48,23 @@ using namespace comb;
 // Type conversion
 //===----------------------------------------------------------------------===//
 
-namespace circt::HWToRTLIL {
-
 /// Widths an `rtlil.wire` can hold: `RTLIL::Wire::width` is an `int`, and
 /// Yosys drops zero-width signals, so they would not survive a round trip.
 static bool isRepresentableWidth(int64_t width) {
   return width > 0 && width < INT32_MAX;
 }
 
-std::optional<mlir::Type>
-RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
+std::optional<Type>
+HWToRTLIL::RTLILTypeConverter::convertInteger(IntegerType t) {
   auto val = t.getWidth();
   if (!isRepresentableWidth(val))
     return std::nullopt;
   return rtlil::MValueType::get(t.getContext(), val);
 }
 
-std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
+std::optional<Type> HWToRTLIL::RTLILTypeConverter::convertInt(hw::IntType t) {
   // A parameterized width has no RTLIL form.
-  auto width = dyn_cast<mlir::IntegerAttr>(t.getWidth());
+  auto width = dyn_cast<IntegerAttr>(t.getWidth());
   if (!width)
     return std::nullopt;
   auto val = width.getInt();
@@ -76,20 +73,18 @@ std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
   return rtlil::MValueType::get(t.getContext(), val);
 }
 
-std::optional<mlir::Type>
-RTLILTypeConverter::convertClock(circt::seq::ClockType t) {
+std::optional<Type>
+HWToRTLIL::RTLILTypeConverter::convertClock(seq::ClockType t) {
   return rtlil::MValueType::get(t.getContext(), 1);
 }
 
 // No target materialization: a value that is still unconverted at the end
 // would otherwise become an undriven wire. Patterns create wires explicitly.
-RTLILTypeConverter::RTLILTypeConverter() : mlir::TypeConverter() {
+HWToRTLIL::RTLILTypeConverter::RTLILTypeConverter() : TypeConverter() {
   addConversion(convertInt);
   addConversion(convertInteger);
   addConversion(convertClock);
 }
-
-} // namespace circt::HWToRTLIL
 
 //===----------------------------------------------------------------------===//
 // Conversion patterns
@@ -103,7 +98,7 @@ using HWToRTLIL::ConversionPatternBase;
 /// Combination of `rtlil.dff` and `rtlil.mux` for the reset value.
 template <typename Pattern>
 static rtlil::WireOp genSyncResetReg(const Pattern &pattern, Location loc,
-                                     mlir::ConversionPatternRewriter &rewriter,
+                                     ConversionPatternRewriter &rewriter,
                                      StringAttr name, Value data, Value clk,
                                      Value next, Value reset,
                                      Value resetValue) {
@@ -130,7 +125,7 @@ struct CompRegOpResetConversion : ConversionPatternBase<seq::CompRegOp> {
 
   LogicalResult
   matchAndRewrite(seq::CompRegOp op, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
+                  ConversionPatternRewriter &rewriter) const override {
     if (!op.getReset() || op.getInitialValue())
       return failure();
     auto name = op.getInnerSym()
@@ -152,7 +147,7 @@ struct CompRegOpConversion : ConversionPatternBase<seq::CompRegOp> {
 
   LogicalResult
   matchAndRewrite(seq::CompRegOp op, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
+                  ConversionPatternRewriter &rewriter) const override {
     if (op.getReset() || op.getInitialValue())
       return failure();
     rtlil::WireOp resultWire =
@@ -175,7 +170,7 @@ struct FirRegOpConversion : ConversionPatternBase<seq::FirRegOp> {
 
   LogicalResult
   matchAndRewrite(seq::FirRegOp op, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
+                  ConversionPatternRewriter &rewriter) const override {
     if (op.getReset() || op.getPreset())
       return failure();
     rtlil::WireOp resultWire =
@@ -198,7 +193,7 @@ struct FirRegOpResetConversion : ConversionPatternBase<seq::FirRegOp> {
 
   LogicalResult
   matchAndRewrite(seq::FirRegOp op, OpAdaptor adaptor,
-                  mlir::ConversionPatternRewriter &rewriter) const override {
+                  ConversionPatternRewriter &rewriter) const override {
     if (!op.getReset() || op.getPreset())
       return failure();
     auto name = op.getInnerSym()
@@ -287,10 +282,10 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
   }
 };
 
-struct MuxOpConversion : ConversionPatternBase<MuxOp> {
-  using ConversionPatternBase<MuxOp>::ConversionPatternBase;
+struct MuxOpConversion : ConversionPatternBase<comb::MuxOp> {
+  using ConversionPatternBase<comb::MuxOp>::ConversionPatternBase;
 
-  LogicalResult matchAndRewrite(MuxOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(comb::MuxOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &r) const override {
     if (op.getTrueValue().getType() != op.getFalseValue().getType())
       return failure();
@@ -320,10 +315,10 @@ struct ConstantConversion : ConversionPatternBase<hw::ConstantOp> {
     if (!outType)
       return failure();
     // Iterate the APInt, since `getInt()` asserts above 64 bits.
-    const llvm::APInt &intVal = adaptor.getValueAttr().getValue();
+    const APInt &intVal = adaptor.getValueAttr().getValue();
     unsigned width = intVal.getBitWidth();
 
-    llvm::SmallVector<rtlil::StateEnum> bits;
+    SmallVector<rtlil::StateEnum> bits;
     bits.reserve(width);
     // Least significant bit first, as `#rtlil.const` stores it.
     for (unsigned idx = 0; idx < width; idx++)
@@ -351,7 +346,7 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
       return rewriter.notifyMatchFailure(op, "port type has no RTLIL form");
     auto moduleOp = rtlil::ModuleOp::create(
         rewriter, op.getLoc(), makeGlobal(rewriter, op.getSymName()));
-    mlir::TypeConverter::SignatureConversion converter(op.getNumInputPorts());
+    TypeConverter::SignatureConversion converter(op.getNumInputPorts());
     auto createPortWire = [&](Type type, size_t portId,
                               rtlil::PortDirection direction) {
       return HWToRTLIL::createWire(
@@ -399,7 +394,7 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
       return failure();
 
     // Ordered by `port_id`, so the output port wires come in output order.
-    llvm::SmallVector<rtlil::WireOp> outputPorts;
+    SmallVector<rtlil::WireOp> outputPorts;
     module.getPortWires(outputPorts);
     llvm::erase_if(outputPorts,
                    [](rtlil::WireOp wire) { return !wire.isPortOutput(); });
@@ -424,19 +419,17 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
   LogicalResult
   matchAndRewrite(hw::InstanceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    llvm::SmallVector<mlir::Attribute> ports;
+    SmallVector<Attribute> ports;
     auto definingOp = HWToRTLIL::lookupSymbolWalkTables<hw::HWModuleOp>(
         op, op.getModuleNameAttr());
     if (!definingOp)
       return failure();
     // Callee port wires are named `\` + the port name.
     for (auto &in : op.getArgNames())
-      ports.emplace_back(
-          makeGlobal(rewriter, cast<mlir::StringAttr>(in).strref()));
+      ports.emplace_back(makeGlobal(rewriter, cast<StringAttr>(in).strref()));
     for (auto &out : op.getResultNames())
-      ports.emplace_back(
-          makeGlobal(rewriter, cast<mlir::StringAttr>(out).strref()));
-    llvm::SmallVector<Value> resultWires(adaptor.getInputs());
+      ports.emplace_back(makeGlobal(rewriter, cast<StringAttr>(out).strref()));
+    SmallVector<Value> resultWires(adaptor.getInputs());
     for (auto res : op->getResults()) {
       auto wire = genLocalWire(res.getLoc(), res, rewriter);
       if (!wire)
@@ -446,11 +439,11 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
 
     rtlil::InstanceOp::create(
         rewriter, op->getLoc(), makeGlobal(rewriter, op.getInstanceNameAttr()),
-        mlir::FlatSymbolRefAttr::get(makeGlobal(rewriter, op.getModuleName())),
+        FlatSymbolRefAttr::get(makeGlobal(rewriter, op.getModuleName())),
         resultWires, rewriter.getArrayAttr(ports), rewriter.getArrayAttr({}));
     resultWires.erase(resultWires.begin(),
                       resultWires.begin() + op.getNumInputPorts());
-    rewriter.replaceOp(op, mlir::ValueRange(resultWires));
+    rewriter.replaceOp(op, ValueRange(resultWires));
     return success();
   }
 };
@@ -463,58 +456,57 @@ struct ICMPConversion : ConversionPatternBase<comb::ICmpOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto pred = adaptor.getPredicate();
     // RTLIL has no wildcard-compare cell for `==?`/`!=?`.
-    if (pred == ICmpPredicate::weq || pred == ICmpPredicate::wne)
+    if (pred == comb::ICmpPredicate::weq || pred == comb::ICmpPredicate::wne)
       return failure();
 
     auto resultWire = genLocalWire(op->getLoc(), op.getResult(), rewriter);
     if (!resultWire)
       return failure();
-    mlir::Value connections[3] = {adaptor.getLhs(), adaptor.getRhs(),
-                                  resultWire};
+    Value connections[3] = {adaptor.getLhs(), adaptor.getRhs(), resultWire};
     auto name = genUniqueLocalName(rewriter);
     auto width = op.getLhs().getType().getIntOrFloatBitWidth();
     bool isSigned = comb::ICmpOp::isPredicateSigned(pred);
     switch (pred) {
-    case ICmpPredicate::eq:
+    case comb::ICmpPredicate::eq:
       rtlil::EQOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
-    case ICmpPredicate::ne:
+    case comb::ICmpPredicate::ne:
       rtlil::NEOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
     // `$eqx`/`$nex` compare x and z as values instead of propagating them,
     // matching `===`/`!==`. Under `bin` this coincides with `$eq`/`$ne`.
-    case ICmpPredicate::ceq:
+    case comb::ICmpPredicate::ceq:
       rtlil::EQXOp::create(rewriter, op->getLoc(), name, connections, width,
                            isSigned);
       break;
-    case ICmpPredicate::cne:
+    case comb::ICmpPredicate::cne:
       rtlil::NEXOp::create(rewriter, op->getLoc(), name, connections, width,
                            isSigned);
       break;
-    case ICmpPredicate::ugt:
-    case ICmpPredicate::sgt:
+    case comb::ICmpPredicate::ugt:
+    case comb::ICmpPredicate::sgt:
       rtlil::GTOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
-    case ICmpPredicate::ult:
-    case ICmpPredicate::slt:
+    case comb::ICmpPredicate::ult:
+    case comb::ICmpPredicate::slt:
       rtlil::LTOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
-    case ICmpPredicate::ule:
-    case ICmpPredicate::sle:
+    case comb::ICmpPredicate::ule:
+    case comb::ICmpPredicate::sle:
       rtlil::LEOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
-    case ICmpPredicate::uge:
-    case ICmpPredicate::sge:
+    case comb::ICmpPredicate::uge:
+    case comb::ICmpPredicate::sge:
       rtlil::GEOp::create(rewriter, op->getLoc(), name, connections, width,
                           isSigned);
       break;
-    case ICmpPredicate::weq:
-    case ICmpPredicate::wne:
+    case comb::ICmpPredicate::weq:
+    case comb::ICmpPredicate::wne:
       llvm_unreachable("wildcard predicates rejected above");
     }
     rewriter.replaceOp(op, resultWire);
@@ -535,7 +527,7 @@ struct ConcatConversion : ConversionPatternBase<comb::ConcatOp> {
     if (!resultType)
       return failure();
 
-    llvm::SmallVector<Value> inputs(llvm::reverse(adaptor.getInputs()));
+    SmallVector<Value> inputs(llvm::reverse(adaptor.getInputs()));
     rewriter.replaceOpWithNewOp<rtlil::ConcatOp>(op, resultType, inputs);
     return success();
   }
@@ -596,7 +588,7 @@ struct ReplicateConversion : ConversionPatternBase<comb::ReplicateOp> {
       rewriter.replaceOp(op, adaptor.getInput());
       return success();
     }
-    llvm::SmallVector<Value> inputs(multiple, adaptor.getInput());
+    SmallVector<Value> inputs(multiple, adaptor.getInput());
     rewriter.replaceOpWithNewOp<rtlil::ConcatOp>(op, resultType, inputs);
     return success();
   }
@@ -616,7 +608,7 @@ struct ReverseConversion : ConversionPatternBase<comb::ReverseOp> {
 
     unsigned width = resultType.getWidth();
     auto bitType = rtlil::MValueType::get(getContext(), 1);
-    llvm::SmallVector<Value> bits;
+    SmallVector<Value> bits;
     bits.reserve(width);
     // `rtlil.concat` is least significant first: result bit 0 is input bit
     // `width - 1`.
@@ -637,7 +629,7 @@ struct ReverseConversion : ConversionPatternBase<comb::ReverseOp> {
 
 namespace {
 struct ConvertHWToRTLILPass
-    : public circt::impl::ConvertHWToRTLILBase<ConvertHWToRTLILPass> {
+    : public impl::ConvertHWToRTLILBase<ConvertHWToRTLILPass> {
   void runOnOperation() override;
 };
 } // namespace
@@ -671,7 +663,7 @@ static void populateHWToRTLILConversionPatterns(
 /// dead modules.
 static LogicalResult prepareForConversion(mlir::ModuleOp module,
                                           const TypeConverter &converter) {
-  auto walk = module.walk([](hw::InstanceOp op) -> mlir::WalkResult {
+  auto walk = module.walk([](hw::InstanceOp op) -> WalkResult {
     // Not supported `hw.module.extern` and `hw.module.generated`.
     auto *callee =
         HWToRTLIL::lookupSymbolWalkTables(op, op.getModuleNameAttr());
@@ -681,7 +673,7 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
                   << "', which has no body; the rtlil dialect cannot represent "
                      "extern or generated modules yet";
       diag.attachNote(callee->getLoc()) << "module declared here";
-      return mlir::WalkResult::interrupt();
+      return WalkResult::interrupt();
     }
 
     // A cell with parameters sends `hierarchy` into `RTLIL::Module::derive()`,
@@ -689,9 +681,9 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
     if (!op.getParameters().empty()) {
       op.emitOpError("has parameters, which the rtlil dialect cannot represent "
                      "on a module with a body; run 'hw-specialize' first");
-      return mlir::WalkResult::interrupt();
+      return WalkResult::interrupt();
     }
-    return mlir::WalkResult::advance();
+    return WalkResult::advance();
   });
   if (walk.wasInterrupted())
     return failure();
@@ -702,7 +694,7 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
        llvm::make_early_inc_range(module.getOps<hw::HWModuleOp>())) {
     if (moduleOp.getParameters().empty())
       continue;
-    if (!mlir::SymbolTable::symbolKnownUseEmpty(moduleOp, module))
+    if (!SymbolTable::symbolKnownUseEmpty(moduleOp, module))
       return moduleOp.emitOpError(
           "is parametric and still used; run 'hw-specialize' first");
     moduleOp.erase();
@@ -724,18 +716,18 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
     // Catch integer values whose width RTLIL cannot hold, such as `i0`. Only
     // ops this pass converts are checked, and only integer types: any other
     // type means the op itself is unsupported, which legalization reports.
-    auto walk = moduleOp.walk([&](Operation *op) -> mlir::WalkResult {
+    auto walk = moduleOp.walk([&](Operation *op) -> WalkResult {
       if (!isa<comb::CombDialect, seq::SeqDialect>(op->getDialect()) &&
           !isa<hw::ConstantOp>(op))
-        return mlir::WalkResult::advance();
+        return WalkResult::advance();
       for (Type type : op->getResultTypes()) {
         if (!isa<IntegerType, hw::IntType>(type) || converter.convertType(type))
           continue;
         op->emitOpError("result has type ")
             << type << ", which has no RTLIL representation";
-        return mlir::WalkResult::interrupt();
+        return WalkResult::interrupt();
       }
-      return mlir::WalkResult::advance();
+      return WalkResult::advance();
     });
     if (walk.wasInterrupted())
       return failure();

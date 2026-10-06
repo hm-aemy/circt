@@ -14,7 +14,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 using namespace circt;
-using namespace rtlil;
+using namespace circt::rtlil;
 
 //===----------------------------------------------------------------------===//
 // Custom directives
@@ -216,7 +216,7 @@ LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 
   SmallVector<WireOp> calleePortWires;
   callee.getPortWires(calleePortWires);
-  llvm::SmallDenseMap<StringRef, WireOp> calleePorts;
+  SmallDenseMap<StringRef, WireOp> calleePorts;
   for (WireOp port : calleePortWires)
     calleePorts.try_emplace(port.getName(), port);
 

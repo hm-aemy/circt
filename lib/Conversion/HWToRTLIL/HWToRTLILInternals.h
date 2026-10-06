@@ -12,6 +12,7 @@
 #include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
 #include "circt/Dialect/Seq/SeqTypes.h"
+#include "circt/Support/LLVM.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
@@ -21,12 +22,12 @@
 namespace circt::HWToRTLIL {
 
 template <typename Sym>
-inline static mlir::Operation *lookupSymbolWalkTables(mlir::Operation *from,
-                                                      const Sym &sym) {
+inline static Operation *lookupSymbolWalkTables(Operation *from,
+                                                const Sym &sym) {
   auto *op = from;
-  mlir::Operation *result = nullptr;
+  Operation *result = nullptr;
   while (op) {
-    if ((result = mlir::SymbolTable::lookupNearestSymbolFrom(op, sym)))
+    if ((result = SymbolTable::lookupNearestSymbolFrom(op, sym)))
       break;
     op = op->getParentOp();
   }
@@ -34,12 +35,11 @@ inline static mlir::Operation *lookupSymbolWalkTables(mlir::Operation *from,
 }
 
 template <typename OpType, typename Sym>
-inline static OpType lookupSymbolWalkTables(mlir::Operation *from,
-                                            const Sym &sym) {
+inline static OpType lookupSymbolWalkTables(Operation *from, const Sym &sym) {
   auto *op = from;
   OpType result = nullptr;
   while (op) {
-    if ((result = mlir::SymbolTable::lookupNearestSymbolFrom<OpType>(op, sym)))
+    if ((result = SymbolTable::lookupNearestSymbolFrom<OpType>(op, sym)))
       break;
     op = op->getParentOp();
   }
@@ -51,21 +51,21 @@ struct ConversionPatternContext {
   unsigned nameCtr = 0;
 };
 
-class RTLILTypeConverter : public mlir::TypeConverter {
+class RTLILTypeConverter : public TypeConverter {
 
-  static std::optional<mlir::Type> convertInteger(mlir::IntegerType t);
+  static std::optional<Type> convertInteger(IntegerType t);
 
-  static std::optional<mlir::Type> convertInt(circt::hw::IntType t);
+  static std::optional<Type> convertInt(hw::IntType t);
 
-  static std::optional<mlir::Type> convertClock(circt::seq::ClockType t);
+  static std::optional<Type> convertClock(seq::ClockType t);
 
 public:
   RTLILTypeConverter();
 };
 
 /// Create a wire named `name`. Without a `direction` it is an internal wire.
-inline rtlil::WireOp createWire(mlir::OpBuilder &builder, mlir::Location loc,
-                                rtlil::MValueType type, llvm::StringRef name,
+inline rtlil::WireOp createWire(OpBuilder &builder, Location loc,
+                                rtlil::MValueType type, StringRef name,
                                 rtlil::PortDirectionAttr direction = {},
                                 uint32_t portId = 0) {
   return rtlil::WireOp::create(builder, loc, type, name,
@@ -84,19 +84,18 @@ protected:
 public:
   ConversionPatternBase(const TypeConverter &typeConverter,
                         ConversionPatternContext &rtlilContext,
-                        mlir::MLIRContext *context)
+                        MLIRContext *context)
       : Super(typeConverter, context), rtlilContext(rtlilContext) {}
 
   /// The public RTLIL name: `\` plus the name verbatim. No uniquing suffix:
   /// names are scoped per module, Yosys keeps `\` names intact, and the
   /// `rtlil.module` verifier catches real collisions.
   template <typename S>
-  mlir::StringAttr makeGlobal(mlir::ConversionPatternRewriter &r, S s) const {
+  StringAttr makeGlobal(ConversionPatternRewriter &r, S s) const {
     return r.getStringAttr(llvm::formatv("\\{0}", s));
   }
 
-  mlir::StringAttr
-  genUniqueLocalName(mlir::ConversionPatternRewriter &r) const {
+  StringAttr genUniqueLocalName(ConversionPatternRewriter &r) const {
     auto v = ++rtlilContext.nameCtr;
     return r.getStringAttr(llvm::formatv("${0}", v));
   }
@@ -104,7 +103,7 @@ public:
   /// A new internal wire with a unique `$<n>` name and the converted type of
   /// `v`, or null if that type has no RTLIL form.
   rtlil::WireOp genLocalWire(Location l, Value v,
-                             mlir::ConversionPatternRewriter &rewriter) const {
+                             ConversionPatternRewriter &rewriter) const {
     auto t = Super::getTypeConverter()->template convertType<rtlil::MValueType>(
         v.getType());
     if (!t)

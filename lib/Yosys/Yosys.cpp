@@ -85,7 +85,7 @@ static std::string resolveAbcExecutable() {
   return {};
 }
 
-llvm::Error circt::yosys::initialize() {
+llvm::Error yosys::initialize() {
   auto &state = getState();
   if (state.initialized)
     return llvm::Error::success();
@@ -124,7 +124,7 @@ llvm::Error circt::yosys::initialize() {
   return llvm::Error::success();
 }
 
-void circt::yosys::shutdown() {
+void yosys::shutdown() {
   auto &state = getState();
   if (!state.initialized)
     return;
@@ -134,20 +134,18 @@ void circt::yosys::shutdown() {
   state = YosysState{};
 }
 
-std::string circt::yosys::getDataDir() { return getState().dataDir; }
+std::string yosys::getDataDir() { return getState().dataDir; }
 
-std::string circt::yosys::getAbcExecutable() {
-  return getState().abcExecutable;
-}
+std::string yosys::getAbcExecutable() { return getState().abcExecutable; }
 
 // Here rather than in each caller: it swaps the global `log_streams`, and its
 // state stays hidden from code built without Yosys headers.
-struct circt::yosys::LogCapture::Impl {
+struct yosys::LogCapture::Impl {
   std::ostringstream buffer;
   std::vector<std::ostream *> saved;
 };
 
-circt::yosys::LogCapture::LogCapture(bool active) {
+yosys::LogCapture::LogCapture(bool active) {
   if (!active)
     return;
   impl = std::make_unique<Impl>();
@@ -156,11 +154,11 @@ circt::yosys::LogCapture::LogCapture(bool active) {
   Yosys::log_streams.push_back(&impl->buffer);
 }
 
-circt::yosys::LogCapture::~LogCapture() {
+yosys::LogCapture::~LogCapture() {
   if (impl)
     Yosys::log_streams = impl->saved;
 }
 
-std::string circt::yosys::LogCapture::str() const {
+std::string yosys::LogCapture::str() const {
   return impl ? impl->buffer.str() : std::string();
 }
