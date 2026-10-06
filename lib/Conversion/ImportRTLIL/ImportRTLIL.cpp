@@ -101,8 +101,6 @@ private:
   llvm::DenseMap<Yosys::RTLIL::Wire *, Value> wireValues;
   /// Module names in the design, so a cell can be recognized as an instance.
   llvm::DenseSet<StringRef> moduleNames;
-  /// The module currently being built, for diagnostics.
-  rtlil::ModuleOp currentModule;
 };
 } // namespace
 
@@ -411,7 +409,6 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
   auto moduleOp = rtlil::ModuleOp::create(
       builder, loc, builder.getStringAttr(name), *attributes,
       builder.getArrayAttr(availParameters));
-  currentModule = moduleOp;
   wireValues.clear();
 
   OpBuilder::InsertionGuard guard(builder);
