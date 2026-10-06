@@ -64,22 +64,19 @@ static bool isRepresentableWidth(int64_t width) {
 std::optional<mlir::Type>
 RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
   auto val = t.getWidth();
-  if (!isRepresentableWidth(val)) {
+  if (!isRepresentableWidth(val))
     return std::nullopt;
-  }
   return rtlil::MValueType::get(t.getContext(), val);
 }
 
 std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
   // A parameterized width has no RTLIL form.
   auto width = dyn_cast<mlir::IntegerAttr>(t.getWidth());
-  if (!width) {
+  if (!width)
     return std::nullopt;
-  }
   auto val = width.getInt();
-  if (!isRepresentableWidth(val)) {
+  if (!isRepresentableWidth(val))
     return std::nullopt;
-  }
   return rtlil::MValueType::get(t.getContext(), val);
 }
 
@@ -150,9 +147,8 @@ struct CompRegOpResetConversion : ConversionPatternBase<seq::CompRegOp> {
   LogicalResult
   matchAndRewrite(seq::CompRegOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    if (!op.getReset() || op.getInitialValue()) {
+    if (!op.getReset() || op.getInitialValue())
       return failure();
-    }
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
@@ -173,9 +169,8 @@ struct CompRegOpConversion : ConversionPatternBase<seq::CompRegOp> {
   LogicalResult
   matchAndRewrite(seq::CompRegOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    if (op.getReset() || op.getInitialValue()) {
+    if (op.getReset() || op.getInitialValue())
       return failure();
-    }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
     if (!resultWire)
@@ -183,9 +178,8 @@ struct CompRegOpConversion : ConversionPatternBase<seq::CompRegOp> {
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
-    std::vector<Value> connections(
-        {adaptor.getClk(), adaptor.getInput(), resultWire});
-    rtlil::DFFOp::create(rewriter, op.getLoc(), name, std::move(connections),
+    Value connections[3] = {adaptor.getClk(), adaptor.getInput(), resultWire};
+    rtlil::DFFOp::create(rewriter, op.getLoc(), name, connections,
                          resultWire.getWidth());
     rewriter.replaceOp(op, resultWire);
     return success();
@@ -198,9 +192,8 @@ struct FirRegOpConversion : ConversionPatternBase<seq::FirRegOp> {
   LogicalResult
   matchAndRewrite(seq::FirRegOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    if (op.getReset() || op.getPreset()) {
+    if (op.getReset() || op.getPreset())
       return failure();
-    }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
     if (!resultWire)
@@ -208,9 +201,8 @@ struct FirRegOpConversion : ConversionPatternBase<seq::FirRegOp> {
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
-    std::vector<Value> connections(
-        {adaptor.getClk(), adaptor.getNext(), resultWire});
-    rtlil::DFFOp::create(rewriter, op.getLoc(), name, std::move(connections),
+    Value connections[3] = {adaptor.getClk(), adaptor.getNext(), resultWire};
+    rtlil::DFFOp::create(rewriter, op.getLoc(), name, connections,
                          resultWire.getWidth());
     rewriter.replaceOp(op, resultWire);
     return success();
@@ -223,9 +215,8 @@ struct FirRegOpResetConversion : ConversionPatternBase<seq::FirRegOp> {
   LogicalResult
   matchAndRewrite(seq::FirRegOp op, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    if (!op.getReset() || op.getPreset()) {
+    if (!op.getReset() || op.getPreset())
       return failure();
-    }
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
@@ -235,11 +226,11 @@ struct FirRegOpResetConversion : ConversionPatternBase<seq::FirRegOp> {
       if (!resultWire)
         return failure();
       // For async reset use `$aldff`.
-      std::vector<Value> connections({adaptor.getClk(), adaptor.getNext(),
-                                      adaptor.getReset(),
-                                      adaptor.getResetValue(), resultWire});
-      rtlil::ALDFFOp::create(rewriter, op->getLoc(), name,
-                             std::move(connections), resultWire.getWidth());
+      Value connections[5] = {adaptor.getClk(), adaptor.getNext(),
+                              adaptor.getReset(), adaptor.getResetValue(),
+                              resultWire};
+      rtlil::ALDFFOp::create(rewriter, op->getLoc(), name, connections,
+                             resultWire.getWidth());
     } else {
       resultWire = genSyncResetReg(
           *this, op->getLoc(), rewriter, name, op.getData(), adaptor.getClk(),
@@ -317,9 +308,8 @@ struct MuxOpConversion : ConversionPatternBase<MuxOp> {
 
   LogicalResult matchAndRewrite(MuxOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &r) const override {
-    if (op.getTrueValue().getType() != op.getFalseValue().getType()) {
+    if (op.getTrueValue().getType() != op.getFalseValue().getType())
       return failure();
-    }
 
     auto resultWire = genLocalWire(op->getLoc(), op->getResult(0), r);
     if (!resultWire)
@@ -368,9 +358,8 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
   LogicalResult
   matchAndRewrite(hw::HWModuleOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!op.getBody().hasOneBlock()) {
+    if (!op.getBody().hasOneBlock())
       return failure();
-    }
     // `prepareForConversion` has already reported unconvertible ports.
     if (llvm::any_of(op.getPortTypes(), [&](Type type) {
           return !getTypeConverter()->convertType(type);

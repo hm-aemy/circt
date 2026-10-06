@@ -27,9 +27,8 @@ inline static mlir::Operation *lookupSymbolWalkTables(mlir::Operation *from,
   auto *op = from;
   mlir::Operation *result = nullptr;
   while (op) {
-    if ((result = mlir::SymbolTable::lookupNearestSymbolFrom(op, sym))) {
+    if ((result = mlir::SymbolTable::lookupNearestSymbolFrom(op, sym)))
       break;
-    };
     op = op->getParentOp();
   }
   return result;
@@ -41,10 +40,8 @@ inline static OpType lookupSymbolWalkTables(mlir::Operation *from,
   auto *op = from;
   OpType result = nullptr;
   while (op) {
-    if ((result =
-             mlir::SymbolTable::lookupNearestSymbolFrom<OpType>(op, sym))) {
+    if ((result = mlir::SymbolTable::lookupNearestSymbolFrom<OpType>(op, sym)))
       break;
-    };
     op = op->getParentOp();
   }
   return result;
@@ -112,4 +109,4 @@ public:
 };
 } // namespace circt::HWToRTLIL
 
-#endif
+#endif // CONVERSION_HWTORTLIL_HWTORTLILINTERNALS_H
