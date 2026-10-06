@@ -358,10 +358,11 @@ std::optional<Yosys::RTLIL::SigSpec> ModuleEmitter::lookup(Value value,
   }
 
   if (!visiting.insert(value).second) {
-    definingOp->emitError("value is defined in terms of itself; the slice and "
-                          "concat chain feeding this operation is cyclic")
-        .attachNote(user->getLoc())
-        << "cycle reached again from here";
+    auto diag =
+        definingOp->emitError("value is defined in terms of itself; the slice "
+                              "and concat chain feeding this operation is "
+                              "cyclic");
+    diag.attachNote(user->getLoc()) << "cycle reached again from here";
     return std::nullopt;
   }
   auto leaveScope = llvm::make_scope_exit([&] { visiting.erase(value); });
@@ -513,8 +514,8 @@ void circt::rtlil::registerExportRTLILTranslation() {
         Yosys::RTLIL::Design design;
         // The `.il` holds the design and nothing else; the check above has
         // established that nothing with hardware meaning is left behind.
-        if (failed(exportRTLIL(llvm::to_vector(module.getOps<rtlil::ModuleOp>()),
-                               &design)))
+        if (failed(exportRTLIL(
+                llvm::to_vector(module.getOps<rtlil::ModuleOp>()), &design)))
           return failure();
 
         // Yosys' own RTLIL backend does the printing. It writes to a

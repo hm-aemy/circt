@@ -19,11 +19,12 @@
 #include "llvm/ADT/ArrayRef.h"
 
 // Names `RTLIL::Design` without including a single Yosys header, which is what
-// keeps this header cheap and keeps `-fexceptions`/C++20 out of every consumer's
-// build. `YOSYS_NAMESPACE_BEGIN` expands to a plain `namespace Yosys {` -- no
-// inline namespace and no version tag -- so this declares the same entity
-// `kernel/rtlil.h` does. `ExportRTLIL.cpp` includes both, so a divergence would
-// be a compile error there rather than a link error later.
+// keeps this header cheap and keeps `-fexceptions`/C++20 out of every
+// consumer's build. `YOSYS_NAMESPACE_BEGIN` expands to a plain
+// `namespace Yosys {` with no inline namespace and no version tag, so this
+// declares the same entity `kernel/rtlil.h` does. `ExportRTLIL.cpp` includes
+// both, so a divergence would be a compile error there rather than a link
+// error later.
 namespace Yosys {
 namespace RTLIL {
 struct Design;

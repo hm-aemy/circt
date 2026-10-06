@@ -724,7 +724,8 @@ static void populateHWToRTLILConversionPatterns(
 static LogicalResult prepareForConversion(mlir::ModuleOp module) {
   auto walk = module.walk([](hw::InstanceOp op) -> mlir::WalkResult {
     // Not supported `hw.module.extern` and `hw.module.generated`.
-    auto *callee = HWToRTLIL::lookupSymbolWalkTables(op, op.getModuleNameAttr());
+    auto *callee =
+        HWToRTLIL::lookupSymbolWalkTables(op, op.getModuleNameAttr());
     if (callee && !isa<hw::HWModuleOp>(callee)) {
       auto diag = op.emitOpError("instantiates '")
                   << op.getModuleName()
