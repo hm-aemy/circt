@@ -36,7 +36,6 @@
 #include "mlir/Transforms/Passes.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
-
 // Defined in the test directory, no public header.
 namespace circt {
 namespace test {

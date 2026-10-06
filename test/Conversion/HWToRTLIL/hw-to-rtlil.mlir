@@ -2,7 +2,7 @@
 
 // Each hw.module becomes an rtlil.module: a symbol-carrying op with a graph
 // region, not a nested builtin.module. Names carry RTLIL's sigil and nothing
-// else -- no uniquing suffix -- so a design that has been through a Yosys
+// else (no uniquing suffix), so a design that has been through a Yosys
 // script still maps back onto the ops it came from.
 // CHECK-LABEL: rtlil.module @"\\test"
 hw.module @test(in %arg0: i32, in %arg1: i32, in %arg2: i32, in %arg3: i32, out out0: i32, out out1: i32) {
