@@ -230,7 +230,8 @@ LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
            << "' is not a valid RTLIL identifier; it must start with '\\' or "
               "'$' and contain no spaces or control characters";
   if (design->has(id(name)))
-    return op.emitError("design already contains a module named ") << name;
+    return op.emitError("design already contains a module named '")
+           << name << "'";
 
   // Wires and cells share one namespace inside an `RTLIL::Module`. The dialect
   // verifier checks this too, but the exporter must not depend on having been
@@ -249,11 +250,12 @@ LogicalResult ModuleEmitter::validate(rtlil::ModuleOp op) {
       return nested.emitError("name '")
              << declaredName << "' is not a valid RTLIL identifier";
     auto [it, inserted] = declared.try_emplace(declaredName, &nested);
-    if (!inserted)
-      return nested.emitError("redeclares the RTLIL name ")
-                 .append(declaredName)
-                 .attachNote(it->second->getLoc())
-             << "previously declared here; wires and cells share one namespace";
+    if (!inserted) {
+      auto diag = nested.emitError("redeclares name '") << declaredName << "'";
+      diag.attachNote(it->second->getLoc())
+          << "previously declared here; wires and cells share one namespace";
+      return diag;
+    }
   }
 
   // A cell's port names and connections are index-parallel arrays.
@@ -447,11 +449,12 @@ LogicalResult circt::rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
     // `validate` only sees what is already in `design`, so duplicates *among*
     // the modules being exported have to be caught here.
     auto [it, inserted] = seen.try_emplace(nested.getSymName(), nested);
-    if (!inserted)
-      return nested.emitError("design already contains a module named ")
-                 .append(nested.getSymName())
-                 .attachNote(it->second->getLoc())
-             << "previously defined here";
+    if (!inserted) {
+      auto diag = nested.emitError("design already contains a module named '")
+                  << nested.getSymName() << "'";
+      diag.attachNote(it->second->getLoc()) << "previously defined here";
+      return diag;
+    }
   }
 
   for (auto nested : modules) {

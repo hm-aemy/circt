@@ -726,12 +726,11 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module) {
     // Not supported `hw.module.extern` and `hw.module.generated`.
     auto *callee = HWToRTLIL::lookupSymbolWalkTables(op, op.getModuleNameAttr());
     if (callee && !isa<hw::HWModuleOp>(callee)) {
-      op.emitOpError("instantiates ")
-              .append(op.getModuleName())
-              .append(", which has no body; the rtlil dialect cannot represent "
-                      "extern or generated modules yet")
-              .attachNote(callee->getLoc())
-          << "module declared here";
+      auto diag = op.emitOpError("instantiates '")
+                  << op.getModuleName()
+                  << "', which has no body; the rtlil dialect cannot represent "
+                     "extern or generated modules yet";
+      diag.attachNote(callee->getLoc()) << "module declared here";
       return mlir::WalkResult::interrupt();
     }
 

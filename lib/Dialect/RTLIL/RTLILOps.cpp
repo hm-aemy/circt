@@ -123,11 +123,11 @@ LogicalResult rtlil::ModuleOp::verifyRegions() {
       return op.emitOpError("port_id ")
              << portId << " without input or output flag";
     auto [it, inserted] = portIds.try_emplace(portId, &op);
-    if (!inserted)
-      return op.emitOpError("reuses port_id ")
-                 .append(portId)
-                 .attachNote(it->second->getLoc())
-             << "already used here";
+    if (!inserted) {
+      auto diag = op.emitOpError("reuses port_id ") << portId;
+      diag.attachNote(it->second->getLoc()) << "already used here";
+      return diag;
+    }
     maxPortId = std::max(maxPortId, portId);
   }
 

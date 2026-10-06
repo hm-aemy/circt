@@ -49,7 +49,7 @@ hw.module @top(in %x : i8, out y : i8) {
 // expected-note@+1 {{module declared here}}
 hw.module.extern @BB(in %a : i8, out b : i8)
 hw.module @top(in %x : i8, out y : i8) {
-  // expected-error@+1 {{'hw.instance' op instantiates BB, which has no body; the rtlil dialect cannot represent extern or generated modules yet}}
+  // expected-error@+1 {{'hw.instance' op instantiates 'BB', which has no body; the rtlil dialect cannot represent extern or generated modules yet}}
   %0 = hw.instance "i0" @BB(a: %x: i8) -> (b: i8)
   hw.output %0 : i8
 }
