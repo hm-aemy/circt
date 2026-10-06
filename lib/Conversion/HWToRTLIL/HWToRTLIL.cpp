@@ -42,8 +42,8 @@ namespace circt {
 using namespace circt;
 using namespace comb;
 
-// TODO proper scoping mechanism for symbols --> global rtlil names
-// likely symbol table walk with prefixes
+// TODO: Add a proper scoping mechanism to map symbols to global RTLIL names,
+// likely a symbol table walk with prefixes.
 
 //===----------------------------------------------------------------------===//
 // Type conversion
