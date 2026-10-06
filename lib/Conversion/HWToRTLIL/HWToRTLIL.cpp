@@ -81,28 +81,12 @@ RTLILTypeConverter::convertClock(circt::seq::ClockType t) {
   return rtlil::MValueType::get(t.getContext(), 1);
 }
 
-RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
-    : mlir::TypeConverter() {
+// No target materialization: a value that is still unconverted at the end
+// would otherwise become an undriven wire. Patterns create wires explicitly.
+RTLILTypeConverter::RTLILTypeConverter() : mlir::TypeConverter() {
   addConversion(convertInt);
   addConversion(convertInteger);
   addConversion(convertClock);
-  // No input value means a module input port, anything else an internal wire.
-  // Each wire gets a unique `$<n>` name, which patterns may overwrite.
-  addTargetMaterialization([&rtlilContext](mlir::OpBuilder &builder,
-                                           circt::rtlil::MValueType t,
-                                           mlir::ValueRange vals,
-                                           mlir::Location pos) -> mlir::Value {
-    if (vals.size() > 1)
-      return {};
-    rtlil::PortDirectionAttr direction;
-    if (vals.empty())
-      direction = rtlil::PortDirectionAttr::get(builder.getContext(),
-                                                rtlil::PortDirection::Input);
-    std::string name = llvm::formatv("${0}", ++rtlilContext.nameCtr);
-    return rtlil::WireOp::create(builder, pos, t, name,
-                                 rtlil::Signedness::Unsigned, /*port_id=*/0,
-                                 /*start_offset=*/0, direction);
-  });
 }
 
 } // namespace circt::HWToRTLIL
@@ -368,35 +352,30 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
     auto moduleOp = rtlil::ModuleOp::create(
         rewriter, op.getLoc(), makeGlobal(rewriter, op.getSymName()));
     mlir::TypeConverter::SignatureConversion converter(op.getNumInputPorts());
+    auto createPortWire = [&](Type type, size_t portId,
+                              rtlil::PortDirection direction) {
+      return HWToRTLIL::createWire(
+          rewriter, op->getLoc(),
+          getTypeConverter()->convertType<rtlil::MValueType>(type),
+          makeGlobal(rewriter, op.getPortName(portId)).getValue(),
+          rtlil::PortDirectionAttr::get(getContext(), direction), portId + 1);
+    };
     for (size_t input = 0; input < op.getNumInputPorts(); input++) {
       rewriter.setInsertionPoint(moduleOp.getBodyBlock(),
                                  moduleOp.getBodyBlock()->begin());
-      Value replacement = getTypeConverter()->materializeTargetConversion(
-          rewriter, op->getLoc(),
-          getTypeConverter()->convertType(op.getInputTypes()[input]), {});
-      auto wire = replacement.getDefiningOp<rtlil::WireOp>();
-      rewriter.modifyOpInPlace(wire, [&]() {
-        wire.setPortId(op.getPortIdForInputId(input) + 1);
-        wire.setName(makeGlobal(rewriter,
-                                op.getPortName(op.getPortIdForInputId(input))));
-      });
-      converter.remapInput(input, replacement);
+      auto wire = createPortWire(op.getInputTypes()[input],
+                                 op.getPortIdForInputId(input),
+                                 rtlil::PortDirection::Input);
+      converter.remapInput(input, wire.getResult());
     }
     // Create output port wires here, where the port names are still known.
     // `OutputConversion` finds them again through `getPortWires()`.
     for (size_t output = 0; output < op.getNumOutputPorts(); output++) {
       rewriter.setInsertionPoint(moduleOp.getBodyBlock(),
                                  moduleOp.getBodyBlock()->end());
-      Value portWire = getTypeConverter()->materializeTargetConversion(
-          rewriter, op->getLoc(),
-          getTypeConverter()->convertType(op.getOutputTypes()[output]), {});
-      auto wire = portWire.getDefiningOp<rtlil::WireOp>();
-      rewriter.modifyOpInPlace(wire, [&]() {
-        wire.setDirection(rtlil::PortDirection::Output);
-        wire.setPortId(op.getPortIdForOutputId(output) + 1);
-        wire.setName(makeGlobal(
-            rewriter, op.getPortName(op.getPortIdForOutputId(output))));
-      });
+      createPortWire(op.getOutputTypes()[output],
+                     op.getPortIdForOutputId(output),
+                     rtlil::PortDirection::Output);
     }
     // Convert the block signature and inline the body into the module.
     rewriter.applySignatureConversion(op.getBodyBlock(), converter,
@@ -459,9 +438,9 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
           makeGlobal(rewriter, cast<mlir::StringAttr>(out).strref()));
     llvm::SmallVector<Value> resultWires(adaptor.getInputs());
     for (auto res : op->getResults()) {
-      auto type = getTypeConverter()->convertType(res.getType());
-      auto wire = getTypeConverter()->materializeTargetConversion(
-          rewriter, res.getLoc(), type, res);
+      auto wire = genLocalWire(res.getLoc(), res, rewriter);
+      if (!wire)
+        return failure();
       resultWires.emplace_back(wire);
     }
 
@@ -766,7 +745,7 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
 
 void ConvertHWToRTLILPass::runOnOperation() {
   HWToRTLIL::ConversionPatternContext context;
-  HWToRTLIL::RTLILTypeConverter converter(context);
+  HWToRTLIL::RTLILTypeConverter converter;
   if (failed(prepareForConversion(getOperation(), converter)))
     return signalPassFailure();
 

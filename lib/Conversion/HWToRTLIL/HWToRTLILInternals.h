@@ -60,9 +60,18 @@ class RTLILTypeConverter : public mlir::TypeConverter {
   static std::optional<mlir::Type> convertClock(circt::seq::ClockType t);
 
 public:
-  /// Uses the shared context to give each materialized wire a unique name.
-  explicit RTLILTypeConverter(ConversionPatternContext &rtlilContext);
+  RTLILTypeConverter();
 };
+
+/// Create a wire named `name`. Without a `direction` it is an internal wire.
+inline rtlil::WireOp createWire(mlir::OpBuilder &builder, mlir::Location loc,
+                                rtlil::MValueType type, llvm::StringRef name,
+                                rtlil::PortDirectionAttr direction = {},
+                                uint32_t portId = 0) {
+  return rtlil::WireOp::create(builder, loc, type, name,
+                               rtlil::Signedness::Unsigned, portId,
+                               /*start_offset=*/0, direction);
+}
 
 template <typename T>
 struct ConversionPatternBase : public OpConversionPattern<T> {
@@ -92,18 +101,15 @@ public:
     return r.getStringAttr(llvm::formatv("${0}", v));
   }
 
+  /// A new internal wire with a unique `$<n>` name and the converted type of
+  /// `v`, or null if that type has no RTLIL form.
   rtlil::WireOp genLocalWire(Location l, Value v,
                              mlir::ConversionPatternRewriter &rewriter) const {
-    auto t = Super::getTypeConverter()->convertType(v.getType());
+    auto t = Super::getTypeConverter()->template convertType<rtlil::MValueType>(
+        v.getType());
     if (!t)
       return {};
-    rtlil::WireOp result = Super::getTypeConverter()
-                               ->materializeTargetConversion(rewriter, l, t, v)
-                               .template getDefiningOp<rtlil::WireOp>();
-    if (result)
-      rewriter.modifyOpInPlace(
-          result, [&] { result.setNameAttr(genUniqueLocalName(rewriter)); });
-    return result;
+    return createWire(rewriter, l, t, genUniqueLocalName(rewriter).getValue());
   }
 };
 } // namespace circt::HWToRTLIL
