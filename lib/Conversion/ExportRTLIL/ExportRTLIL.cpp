@@ -390,7 +390,8 @@ LogicalResult ModuleEmitter::emitCell(rtlil::CellOpInterface op) {
 
 LogicalResult circt::rtlil::exportRTLIL(ArrayRef<rtlil::ModuleOp> modules,
                                         Yosys::RTLIL::Design *design) {
-  // Validate everything first, so a failure leaves `design` untouched.
+  // Validate all modules first, so nothing Yosys treats as fatal reaches it.
+  // Emission can still fail and leave partial modules in `design`.
   ModuleEmitter validator(design);
   llvm::DenseMap<StringRef, Operation *> seen;
   for (auto nested : modules) {
