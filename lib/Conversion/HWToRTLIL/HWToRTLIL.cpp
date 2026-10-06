@@ -55,11 +55,8 @@ using namespace comb;
 
 namespace circt::HWToRTLIL {
 
-/// The widths an `rtlil.wire` can hold. `RTLIL::Wire::width` is an `int`, which
-/// sets the upper bound. Zero is rejected too, to match the other end: Yosys
-/// drops a zero-width signal rather than carrying it, so `ImportRTLIL` has
-/// nothing to build an `!rtlil.val` from. Letting one through here would only
-/// move the failure to the round trip.
+/// Widths an `rtlil.wire` can hold: `RTLIL::Wire::width` is an `int`, and
+/// Yosys drops zero-width signals, so they would not survive a round trip.
 static bool isRepresentableWidth(int64_t width) {
   return width > 0 && width < INT32_MAX;
 }
@@ -74,8 +71,7 @@ RTLILTypeConverter::convertInteger(mlir::IntegerType t) {
 }
 
 std::optional<mlir::Type> RTLILTypeConverter::convertInt(circt::hw::IntType t) {
-  // A parameterized width has no RTLIL form: an `rtlil.wire` is a fixed number
-  // of bits.
+  // A parameterized width has no RTLIL form.
   auto width = dyn_cast<mlir::IntegerAttr>(t.getWidth());
   if (!width) {
     return std::nullopt;
@@ -97,13 +93,8 @@ RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
   addConversion(convertInt);
   addConversion(convertInteger);
   addConversion(convertClock);
-  // Materializing with no input value means "this stands for a module input",
-  // which is the one case that produces a port wire. Everything else is an
-  // ordinary internal wire.
-  //
-  // Every wire gets a unique `$<n>` name here rather than a placeholder;
-  // patterns that know a better name overwrite it. `InstanceConversion` does
-  // not, so without this its result wires would all share one name.
+  // No input value means a module input port, anything else an internal wire.
+  // Each wire gets a unique `$<n>` name, which patterns may overwrite.
   addTargetMaterialization([&rtlilContext](mlir::OpBuilder &builder,
                                            circt::rtlil::MValueType t,
                                            mlir::ValueRange vals,
@@ -187,13 +178,9 @@ struct CompRegOpConversion : ConversionPatternBase<seq::CompRegOp> {
     }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
-    auto name =
-        op.getInnerSym()
-            ? makeGlobal(
-                  rewriter,
-                  op.getInnerSymAttr().getSymName()) // this should be prefixed
-                                                     // by the module probably
-            : genUniqueLocalName(rewriter);
+    auto name = op.getInnerSym()
+                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
+                    : genUniqueLocalName(rewriter);
     std::vector<Value> connections(
         {adaptor.getClk(), adaptor.getInput(), resultWire});
     rtlil::DFFOp::create(rewriter, op.getLoc(), name, std::move(connections),
@@ -214,13 +201,9 @@ struct FirRegOpConversion : ConversionPatternBase<seq::FirRegOp> {
     }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
-    auto name =
-        op.getInnerSym()
-            ? makeGlobal(
-                  rewriter,
-                  op.getInnerSymAttr().getSymName()) // this should be prefixed
-                                                     // by the module probably
-            : genUniqueLocalName(rewriter);
+    auto name = op.getInnerSym()
+                    ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
+                    : genUniqueLocalName(rewriter);
     std::vector<Value> connections(
         {adaptor.getClk(), adaptor.getNext(), resultWire});
     rtlil::DFFOp::create(rewriter, op.getLoc(), name, std::move(connections),
@@ -269,8 +252,7 @@ template <typename BinOp, typename ResultOp, bool OpsSigned = false,
           typename = void>
 struct BinOpConversion;
 
-/// The variadic `comb` ops. RTLIL cell takes two inputs, spread back out over a
-/// left-leaning chain of
+/// The variadic `comb` ops, lowered to a left-leaning chain of two-input cells.
 template <typename BinOp, typename ResultOp, bool OpsSigned>
 struct BinOpConversion<BinOp, ResultOp, OpsSigned,
                        std::enable_if_t<std::is_member_function_pointer_v<
@@ -355,15 +337,13 @@ struct ConstantConversion : ConversionPatternBase<hw::ConstantOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto outType = getTypeConverter()->convertType<rtlil::MValueType>(
         op->getResultTypes()[0]);
-    // Iterate the APInt rather than going through `getInt()`, which asserts
-    // above 64 bits. Constants that wide are ordinary in gate-level designs.
+    // Iterate the APInt, since `getInt()` asserts above 64 bits.
     const llvm::APInt &intVal = adaptor.getValueAttr().getValue();
     unsigned width = intVal.getBitWidth();
 
     llvm::SmallVector<rtlil::StateEnum> bits;
     bits.reserve(width);
-    // Least significant bit first, the order both `#rtlil.const` and
-    // `RTLIL::Const` store.
+    // Least significant bit first, as `#rtlil.const` stores it.
     for (unsigned idx = 0; idx < width; idx++)
       bits.emplace_back(intVal[idx] ? rtlil::StateEnum::S1
                                     : rtlil::StateEnum::S0);
@@ -400,12 +380,8 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
       });
       converter.remapInput(input, replacement);
     }
-    // Output port wires are created here rather than by `OutputConversion`,
-    // which by the time it runs has been reparented into `moduleOp` and can no
-    // longer see this `hw.module` to get the port names from. It finds these
-    // wires through `getPortWires()` instead, so nothing has to be carried on
-    // the shared context between the two patterns -- and the conversion driver
-    // does not promise to finish one module before starting the next.
+    // Create output port wires here, where the port names are still known.
+    // `OutputConversion` finds them again through `getPortWires()`.
     for (size_t output = 0; output < op.getNumOutputPorts(); output++) {
       rewriter.setInsertionPoint(moduleOp.getBodyBlock(),
                                  moduleOp.getBodyBlock()->end());
@@ -421,8 +397,7 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
             rewriter, op.getPortName(op.getPortIdForOutputId(output))));
       });
     }
-    // Apply type conversion to block signature, then inline the converted block
-    // into the module.
+    // Convert the block signature and inline the body into the module.
     rewriter.applySignatureConversion(op.getBodyBlock(), converter,
                                       getTypeConverter());
     rewriter.inlineBlockBefore(&op.getBody().getBlocks().front(),
@@ -443,9 +418,7 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
     if (!module)
       return failure();
 
-    // `getPortWires()` is ordered by `port_id`, and `getPortIdForOutputId` is
-    // monotonic in the output index, so the output port wires appear here in
-    // output order.
+    // Ordered by `port_id`, so the output port wires come in output order.
     llvm::SmallVector<rtlil::WireOp> outputPorts;
     module.getPortWires(outputPorts);
     llvm::erase_if(outputPorts,
@@ -455,10 +428,8 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
     if (outputPorts.size() != outputs.size())
       return failure();
 
-    // Drive each port wire with a connection rather than relabelling whatever
-    // wire happens to define the value. The value may be an `rtlil.const`, an
-    // input port, or the same wire feeding two outputs -- none of which can be
-    // turned into this output port in place.
+    // Connect rather than rename the defining wire: the value may be a const,
+    // an input port, or feed several outputs.
     for (auto [wire, value] : llvm::zip(outputPorts, outputs))
       rtlil::WConnectionOp::create(rewriter, op.getLoc(), wire.getResult(),
                                    value);
@@ -478,10 +449,7 @@ struct InstanceConversion : ConversionPatternBase<hw::InstanceOp> {
         op, op.getModuleNameAttr());
     if (!definingOp)
       return failure();
-    // The callee's port wires are named `\` + the port name, so the caller can
-    // spell them without looking the callee up. That only holds because
-    // `makeGlobal` no longer appends a uniquing suffix -- when it did, the
-    // callee's identity had to be smuggled in as its Location.
+    // Callee port wires are named `\` + the port name.
     for (auto &in : op.getArgNames())
       ports.emplace_back(
           makeGlobal(rewriter, cast<mlir::StringAttr>(in).strref()));
@@ -670,8 +638,8 @@ struct ReverseConversion : ConversionPatternBase<comb::ReverseOp> {
     auto bitType = rtlil::MValueType::get(getContext(), 1);
     llvm::SmallVector<Value> bits;
     bits.reserve(width);
-    // `rtlil.concat` takes its operands least significant first, and result bit
-    // 0 is input bit `width - 1`.
+    // `rtlil.concat` is least significant first: result bit 0 is input bit
+    // `width - 1`.
     for (unsigned bit = 0; bit < width; bit++)
       bits.push_back(rtlil::SliceOp::create(
           rewriter, op->getLoc(), bitType, adaptor.getInput(),

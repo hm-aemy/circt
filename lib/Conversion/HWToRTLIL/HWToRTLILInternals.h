@@ -51,10 +51,7 @@ inline static OpType lookupSymbolWalkTables(mlir::Operation *from,
 }
 
 struct ConversionPatternContext {
-  /// Supplies the number in auto-generated `$<n>` RTLIL names. Monotonic across
-  /// the whole conversion, which is stronger than RTLIL needs -- names are
-  /// unique per module -- but costs nothing and keeps the patterns independent
-  /// of the order the conversion driver happens to visit modules in.
+  /// Counter for auto-generated `$<n>` names, global across all modules.
   std::atomic<unsigned int> nameCtr = 0;
 };
 
@@ -67,11 +64,7 @@ class RTLILTypeConverter : public mlir::TypeConverter {
   static std::optional<mlir::Type> convertClock(circt::seq::ClockType t);
 
 public:
-  /// Takes the shared context so that materialized wires can be given a unique
-  /// auto-generated name up front. Naming them from `printAsOperand` instead --
-  /// as this used to -- restarts numbering on a detached value, and two wires
-  /// that end up with the same name make Yosys abort the process when the
-  /// design is exported.
+  /// Uses the shared context to give each materialized wire a unique name.
   explicit RTLILTypeConverter(ConversionPatternContext &rtlilContext);
 };
 
@@ -89,16 +82,9 @@ public:
                         mlir::MLIRContext *context)
       : Super(typeConverter, context), rtlilContext(rtlilContext) {}
 
-  /// The RTLIL name for something the user named: the `\` sigil (RTLIL's
-  /// "public") plus the name verbatim.
-  ///
-  /// Deliberately no uniquing suffix. RTLIL identifiers are scoped per module,
-  /// so two modules may each have a `\x`, and Yosys carries `\`-prefixed names
-  /// through `opt`, `techmap` and `abc` untouched while rewriting `$`-prefixed
-  /// ones freely. A suffix would make every name in a design coming back from
-  /// Yosys unrecognizable and would force `hierarchy -auto-top`, in exchange
-  /// for nothing: a real collision is caught by the `rtlil.module` verifier,
-  /// which is a better outcome than mangling every name to avoid it.
+  /// The public RTLIL name: `\` plus the name verbatim. No uniquing suffix:
+  /// names are scoped per module, Yosys keeps `\` names intact, and the
+  /// `rtlil.module` verifier catches real collisions.
   template <typename S>
   mlir::StringAttr makeGlobal(mlir::ConversionPatternRewriter &r, S s) const {
     return r.getStringAttr(llvm::formatv("\\{0}", s));
