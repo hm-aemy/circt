@@ -58,7 +58,7 @@ rtlil.module @"\\top" {
 
   // Port names are the callee's wire names, sigil included -- not bare
   // identifiers: `RTLIL::Cell::setPort` interns them as `IdString`s.
-  "rtlil.instance"(%1, %6) <{name="$inst", type=@"\\add", ports = ["\\a", "\\y"], parameters = []}> : (!rtlil<val[32]>, !rtlil<val[32]>) -> ()
+  rtlil.instance "$inst" @"\\add" ["\\a" = %1, "\\y" = %6] parameters [] : !rtlil<val[32]>, !rtlil<val[32]>
 }
 
 // A SigSpec: bits [6:3] of a wire concatenated with two constant bits, the

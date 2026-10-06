@@ -263,7 +263,7 @@ rtlil.module @"\\top" {
 
 rtlil.module @"\\top" {
   // expected-error@+1 {{'rtlil.instance' op references unknown module '\nope'}}
-  "rtlil.instance"() <{name="$i", type=@"\\nope", ports = [], parameters = []}> : () -> ()
+  rtlil.instance "$i" @"\\nope" [] parameters []
 }
 
 // -----
@@ -357,7 +357,7 @@ rtlil.module @"\\callee" {
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
   // expected-error@+1 {{'rtlil.instance' op connects port '\nope', which module '\callee' does not declare}}
-  "rtlil.instance"(%w) <{name="$i", type=@"\\callee", ports = ["\\nope"], parameters = []}> : (!rtlil<val[8]>) -> ()
+  rtlil.instance "$i" @"\\callee" ["\\nope" = %w] parameters [] : !rtlil<val[8]>
 }
 
 // -----
@@ -369,5 +369,5 @@ rtlil.module @"\\callee" {
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[32]>
   // expected-error@+1 {{'rtlil.instance' op connects 32 bits to port '\a', which is 8 bits wide}}
-  "rtlil.instance"(%w) <{name="$i", type=@"\\callee", ports = ["\\a"], parameters = []}> : (!rtlil<val[32]>) -> ()
+  rtlil.instance "$i" @"\\callee" ["\\a" = %w] parameters [] : !rtlil<val[32]>
 }

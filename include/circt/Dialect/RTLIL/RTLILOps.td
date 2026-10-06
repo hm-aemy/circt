@@ -243,6 +243,11 @@ def InstanceOp : RTLILOp<"instance", [
                        ParamArrayAttr:$parameters,
                        DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
   );
+  let assemblyFormat = [{
+    $name $type custom<CellPorts>($connections, $ports)
+    `parameters` $parameters (`attributes` $rtlil_attributes^)? attr-dict
+    (`:` type($connections)^)?
+  }];
 }
 
 //===----------------------------------------------------------------------===//
