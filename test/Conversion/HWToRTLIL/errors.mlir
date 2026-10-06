@@ -65,3 +65,28 @@ hw.module @top(in %x : i8, out y : i8) {
   %1 = comb.concat %x, %0 : i8, i0
   hw.output %1 : i8
 }
+
+// -----
+
+// Zero-width ports have no RTLIL representation.
+// expected-error@below {{port 'x' has type 'i0', which has no RTLIL representation}}
+hw.module @zero_width_input(in %x : i0, in %y : i1, out z : i1) {
+  hw.output %y : i1
+}
+
+// -----
+
+// expected-error@below {{port 'y' has type 'i0', which has no RTLIL representation}}
+hw.module @zero_width_output(in %x : i1, out y : i0) {
+  %c = hw.constant 0 : i0
+  hw.output %c : i0
+}
+
+// -----
+
+// A register of zero width cannot be converted.
+hw.module @zero_width_reg(in %clk : !seq.clock, in %d : i1) {
+  %c = hw.constant 0 : i0
+  // expected-error@below {{failed to legalize operation 'seq.compreg' that was explicitly marked illegal}}
+  %r = seq.compreg %c, %clk : i0
+}

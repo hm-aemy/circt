@@ -178,6 +178,8 @@ struct CompRegOpConversion : ConversionPatternBase<seq::CompRegOp> {
     }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
+    if (!resultWire)
+      return failure();
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
@@ -201,6 +203,8 @@ struct FirRegOpConversion : ConversionPatternBase<seq::FirRegOp> {
     }
     rtlil::WireOp resultWire =
         genLocalWire(op->getLoc(), op.getData(), rewriter);
+    if (!resultWire)
+      return failure();
     auto name = op.getInnerSym()
                     ? makeGlobal(rewriter, op.getInnerSymAttr().getSymName())
                     : genUniqueLocalName(rewriter);
@@ -318,6 +322,8 @@ struct MuxOpConversion : ConversionPatternBase<MuxOp> {
     }
 
     auto resultWire = genLocalWire(op->getLoc(), op->getResult(0), r);
+    if (!resultWire)
+      return failure();
     Value connections[4] = {adaptor.getFalseValue(), adaptor.getTrueValue(),
                             adaptor.getCond(), resultWire};
 
@@ -337,6 +343,8 @@ struct ConstantConversion : ConversionPatternBase<hw::ConstantOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto outType = getTypeConverter()->convertType<rtlil::MValueType>(
         op->getResultTypes()[0]);
+    if (!outType)
+      return failure();
     // Iterate the APInt, since `getInt()` asserts above 64 bits.
     const llvm::APInt &intVal = adaptor.getValueAttr().getValue();
     unsigned width = intVal.getBitWidth();
@@ -363,6 +371,11 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
     if (!op.getBody().hasOneBlock()) {
       return failure();
     }
+    // `prepareForConversion` has already reported unconvertible ports.
+    if (llvm::any_of(op.getPortTypes(), [&](Type type) {
+          return !getTypeConverter()->convertType(type);
+        }))
+      return rewriter.notifyMatchFailure(op, "port type has no RTLIL form");
     auto moduleOp = rtlil::ModuleOp::create(
         rewriter, op.getLoc(), makeGlobal(rewriter, op.getSymName()));
     mlir::TypeConverter::SignatureConversion converter(op.getNumInputPorts());
@@ -689,7 +702,8 @@ static void populateHWToRTLILConversionPatterns(
 
 /// Preparation of conversion by erroring on unsupported constructs and removing
 /// dead modules.
-static LogicalResult prepareForConversion(mlir::ModuleOp module) {
+static LogicalResult prepareForConversion(mlir::ModuleOp module,
+                                          const TypeConverter &converter) {
   auto walk = module.walk([](hw::InstanceOp op) -> mlir::WalkResult {
     // Not supported `hw.module.extern` and `hw.module.generated`.
     auto *callee =
@@ -726,23 +740,35 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module) {
           "is parametric and still used; run 'hw-specialize' first");
     moduleOp.erase();
   }
+
+  // Reject ports without an RTLIL type here, after the parametric templates
+  // are gone: `hw.module` is not illegal, so a failed `ModuleConversion` would
+  // otherwise not fail the pass.
+  for (auto moduleOp : module.getOps<hw::HWModuleOp>()) {
+    for (auto &port : moduleOp.getPortList()) {
+      if (converter.convertType(port.type))
+        continue;
+      return moduleOp.emitOpError("port '")
+             << port.getName() << "' has type " << port.type
+             << ", which has no RTLIL representation";
+    }
+  }
   return success();
 }
 
 void ConvertHWToRTLILPass::runOnOperation() {
-  if (failed(prepareForConversion(getOperation())))
+  HWToRTLIL::ConversionPatternContext context;
+  HWToRTLIL::RTLILTypeConverter converter(context);
+  if (failed(prepareForConversion(getOperation(), converter)))
     return signalPassFailure();
 
   ConversionTarget target(getContext());
-  mlir::ConversionConfig config;
   target.addLegalDialect<rtlil::RTLILDialect>();
   target.addIllegalDialect<comb::CombDialect>();
   target.addIllegalDialect<seq::SeqDialect>();
   target.addLegalOp<mlir::ModuleOp>();
-  HWToRTLIL::ConversionPatternContext context;
 
   RewritePatternSet patterns(&getContext());
-  HWToRTLIL::RTLILTypeConverter converter(context);
   populateHWToRTLILConversionPatterns(converter, context, patterns);
   // No topological sort afterwards: an `rtlil.module` body is a graph region,
   // so a cell may precede the `rtlil.wire` it drives.
