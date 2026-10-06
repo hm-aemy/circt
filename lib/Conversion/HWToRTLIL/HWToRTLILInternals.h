@@ -53,11 +53,11 @@ struct ConversionPatternContext {
 
 class RTLILTypeConverter : public TypeConverter {
 
-  static std::optional<Type> convertInteger(IntegerType t);
+  static std::optional<Type> convertInteger(IntegerType type);
 
-  static std::optional<Type> convertInt(hw::IntType t);
+  static std::optional<Type> convertInt(hw::IntType type);
 
-  static std::optional<Type> convertClock(seq::ClockType t);
+  static std::optional<Type> convertClock(seq::ClockType type);
 
 public:
   RTLILTypeConverter();
@@ -90,25 +90,27 @@ public:
   /// The public RTLIL name: `\` plus the name verbatim. No uniquing suffix:
   /// names are scoped per module, Yosys keeps `\` names intact, and the
   /// `rtlil.module` verifier catches real collisions.
-  template <typename S>
-  StringAttr makeGlobal(ConversionPatternRewriter &r, S s) const {
-    return r.getStringAttr(llvm::formatv("\\{0}", s));
+  template <typename NameT>
+  StringAttr makeGlobal(ConversionPatternRewriter &rewriter, NameT name) const {
+    return rewriter.getStringAttr(llvm::formatv("\\{0}", name));
   }
 
-  StringAttr genUniqueLocalName(ConversionPatternRewriter &r) const {
-    auto v = ++rtlilContext.nameCtr;
-    return r.getStringAttr(llvm::formatv("${0}", v));
+  StringAttr genUniqueLocalName(ConversionPatternRewriter &rewriter) const {
+    unsigned id = ++rtlilContext.nameCtr;
+    return rewriter.getStringAttr(llvm::formatv("${0}", id));
   }
 
   /// A new internal wire with a unique `$<n>` name and the converted type of
-  /// `v`, or null if that type has no RTLIL form.
-  rtlil::WireOp genLocalWire(Location l, Value v,
+  /// `value`, or null if that type has no RTLIL form.
+  rtlil::WireOp genLocalWire(Location loc, Value value,
                              ConversionPatternRewriter &rewriter) const {
-    auto t = Super::getTypeConverter()->template convertType<rtlil::MValueType>(
-        v.getType());
-    if (!t)
+    auto type =
+        Super::getTypeConverter()->template convertType<rtlil::MValueType>(
+            value.getType());
+    if (!type)
       return {};
-    return createWire(rewriter, l, t, genUniqueLocalName(rewriter).getValue());
+    return createWire(rewriter, loc, type,
+                      genUniqueLocalName(rewriter).getValue());
   }
 };
 } // namespace circt::HWToRTLIL

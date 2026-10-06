@@ -55,27 +55,28 @@ static bool isRepresentableWidth(int64_t width) {
 }
 
 std::optional<Type>
-HWToRTLIL::RTLILTypeConverter::convertInteger(IntegerType t) {
-  auto val = t.getWidth();
-  if (!isRepresentableWidth(val))
+HWToRTLIL::RTLILTypeConverter::convertInteger(IntegerType type) {
+  unsigned width = type.getWidth();
+  if (!isRepresentableWidth(width))
     return std::nullopt;
-  return rtlil::MValueType::get(t.getContext(), val);
-}
-
-std::optional<Type> HWToRTLIL::RTLILTypeConverter::convertInt(hw::IntType t) {
-  // A parameterized width has no RTLIL form.
-  auto width = dyn_cast<IntegerAttr>(t.getWidth());
-  if (!width)
-    return std::nullopt;
-  auto val = width.getInt();
-  if (!isRepresentableWidth(val))
-    return std::nullopt;
-  return rtlil::MValueType::get(t.getContext(), val);
+  return rtlil::MValueType::get(type.getContext(), width);
 }
 
 std::optional<Type>
-HWToRTLIL::RTLILTypeConverter::convertClock(seq::ClockType t) {
-  return rtlil::MValueType::get(t.getContext(), 1);
+HWToRTLIL::RTLILTypeConverter::convertInt(hw::IntType type) {
+  // A parameterized width has no RTLIL form.
+  auto widthAttr = dyn_cast<IntegerAttr>(type.getWidth());
+  if (!widthAttr)
+    return std::nullopt;
+  int64_t width = widthAttr.getInt();
+  if (!isRepresentableWidth(width))
+    return std::nullopt;
+  return rtlil::MValueType::get(type.getContext(), width);
+}
+
+std::optional<Type>
+HWToRTLIL::RTLILTypeConverter::convertClock(seq::ClockType type) {
+  return rtlil::MValueType::get(type.getContext(), 1);
 }
 
 // No target materialization: a value that is still unconverted at the end
@@ -236,8 +237,9 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
   using Super::ConversionPatternBase;
   using typename Super::OpAdaptor;
 
-  LogicalResult matchAndRewrite(BinOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &r) const override {
+  LogicalResult
+  matchAndRewrite(BinOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     auto inputs = adaptor.getInputs();
     if (inputs.size() < 2)
       return failure();
@@ -246,15 +248,17 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
     Value lhs = inputs.front();
     rtlil::WireOp resultWire;
     for (Value rhs : inputs.drop_front()) {
-      resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
+      resultWire =
+          Super::genLocalWire(op->getLoc(), op->getResult(0), rewriter);
       if (!resultWire)
         return failure();
       Value connections[3] = {lhs, rhs, resultWire};
-      ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r),
-                       connections, width, OpsSigned);
+      ResultOp::create(rewriter, op->getLoc(),
+                       Super::genUniqueLocalName(rewriter), connections, width,
+                       OpsSigned);
       lhs = resultWire;
     }
-    r.replaceOp(op, resultWire);
+    rewriter.replaceOp(op, resultWire);
     return success();
   }
 };
@@ -269,15 +273,18 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
   using Super::ConversionPatternBase;
   using typename Super::OpAdaptor;
 
-  LogicalResult matchAndRewrite(BinOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &r) const override {
-    auto resultWire = Super::genLocalWire(op->getLoc(), op->getResult(0), r);
+  LogicalResult
+  matchAndRewrite(BinOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultWire =
+        Super::genLocalWire(op->getLoc(), op->getResult(0), rewriter);
     if (!resultWire)
       return failure();
     Value connections[3] = {adaptor.getLhs(), adaptor.getRhs(), resultWire};
-    ResultOp::create(r, op->getLoc(), Super::genUniqueLocalName(r), connections,
+    ResultOp::create(rewriter, op->getLoc(),
+                     Super::genUniqueLocalName(rewriter), connections,
                      op.getLhs().getType().getIntOrFloatBitWidth(), OpsSigned);
-    r.replaceOp(op, resultWire);
+    rewriter.replaceOp(op, resultWire);
     return success();
   }
 };
@@ -285,20 +292,22 @@ struct BinOpConversion<BinOp, ResultOp, OpsSigned,
 struct MuxOpConversion : ConversionPatternBase<comb::MuxOp> {
   using ConversionPatternBase<comb::MuxOp>::ConversionPatternBase;
 
-  LogicalResult matchAndRewrite(comb::MuxOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &r) const override {
+  LogicalResult
+  matchAndRewrite(comb::MuxOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     if (op.getTrueValue().getType() != op.getFalseValue().getType())
       return failure();
 
-    auto resultWire = genLocalWire(op->getLoc(), op->getResult(0), r);
+    auto resultWire = genLocalWire(op->getLoc(), op->getResult(0), rewriter);
     if (!resultWire)
       return failure();
     Value connections[4] = {adaptor.getFalseValue(), adaptor.getTrueValue(),
                             adaptor.getCond(), resultWire};
 
-    rtlil::MuxOp::create(r, op->getLoc(), genUniqueLocalName(r), connections,
+    rtlil::MuxOp::create(rewriter, op->getLoc(), genUniqueLocalName(rewriter),
+                         connections,
                          op.getTrueValue().getType().getIntOrFloatBitWidth());
-    r.replaceOp(op, resultWire);
+    rewriter.replaceOp(op, resultWire);
 
     return success();
   }

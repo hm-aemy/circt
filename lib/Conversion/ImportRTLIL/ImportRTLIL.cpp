@@ -241,10 +241,11 @@ FailureOr<Attribute> Importer::importConst(const Yosys::RTLIL::Const &value,
 }
 
 /// `flags`, unless they are the default.
-static std::optional<uint16_t> nonDefaultFlags(const Yosys::RTLIL::Const &v) {
-  if (v.flags == Yosys::RTLIL::CONST_FLAG_NONE)
+static std::optional<uint16_t>
+nonDefaultFlags(const Yosys::RTLIL::Const &value) {
+  if (value.flags == Yosys::RTLIL::CONST_FLAG_NONE)
     return std::nullopt;
-  return v.flags;
+  return value.flags;
 }
 
 FailureOr<ArrayAttr>
