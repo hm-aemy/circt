@@ -90,13 +90,14 @@ ConstAttr ConstAttr::getFromBitString(MLIRContext *context, StringRef bits) {
 
 Attribute ConstAttr::parse(AsmParser &parser, Type) {
   std::string bits;
+  if (parser.parseLess())
+    return {};
   llvm::SMLoc loc = parser.getCurrentLocation();
-  if (parser.parseLess() || parser.parseString(&bits) || parser.parseGreater())
+  if (parser.parseString(&bits) || parser.parseGreater())
     return {};
   auto attr = ConstAttr::getFromBitString(parser.getContext(), bits);
   if (!attr)
-    parser.emitError(loc,
-                     "expected a bit string of '0', '1', 'x', 'z' and '-'");
+    parser.emitError(loc, "expected a bit string of '0', '1', 'x', 'z' or '-'");
   return attr;
 }
 
