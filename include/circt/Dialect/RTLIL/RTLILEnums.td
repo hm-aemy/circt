@@ -59,10 +59,7 @@ def StateSa: I8EnumAttrCase<"Sa", 4>;
 
 def StateEnumAttr: I8EnumAttr<"StateEnum",
     "The five-valued `RTLIL::State` model: 0, 1, x, z and don't-care (`-`)",
-    [StateS0, StateS1, StateSx, StateSz, StateSa]> {
-  let stringToSymbolFnName = "ConvertToEnum";
-  let symbolToStringFnName = "ConvertToString";
-}
+    [StateS0, StateS1, StateSx, StateSz, StateSa]>;
 
 } // let cppNamespace
 
