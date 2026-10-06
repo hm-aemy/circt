@@ -24,6 +24,8 @@ def RunYosys : Pass<"rtlil-run-yosys", "mlir::ModuleOp"> {
 
     Yosys is not thread safe, so all instances of this pass run serially.
 
+    Shell commands (`!cmd` and the `exec` pass) are rejected.
+
     Requires CIRCT to be built with libyosys (`CIRCT_YOSYS_LIB_ENABLED`);
     otherwise the pass fails with an error.
   }];

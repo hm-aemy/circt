@@ -89,7 +89,6 @@ void RunYosysPass::runOnOperation() {
 ///   - `;;` and `;;;` as shorthand for `clean` and `clean -purge`.
 ///   - `#` starts a comment that runs to the end of the line.
 ///   - A double-quoted string is one word, even if it contains a `;`.
-///   - A script starting with `!` goes to the shell whole.
 static SmallVector<std::string> splitScript(StringRef script) {
   SmallVector<std::string> commands;
   SmallVector<std::string> words;
@@ -101,11 +100,6 @@ static SmallVector<std::string> splitScript(StringRef script) {
 
   std::string rest = script.str();
   std::string word = Yosys::next_token(rest, " \t\r\n", true);
-  if (!word.empty() && word.front() == '!') {
-    commands.push_back(script.trim().str());
-    return commands;
-  }
-
   while (!word.empty()) {
     if (word.front() == '#') {
       rest.erase(0, std::min(rest.find_first_of("\r\n"), rest.size()));
@@ -148,6 +142,18 @@ void RunYosysPass::runOnOperation() {
     return signalPassFailure();
   }
 
+  // A pass option must not run arbitrary programs. `Pass::call` hands a
+  // command starting with `!` to the shell, and `exec` does the same.
+  SmallVector<std::string> scriptCommands = splitScript(script);
+  for (const std::string &command : scriptCommands) {
+    StringRef name = StringRef(command).split(' ').first;
+    if (name.starts_with("!") || name == "exec") {
+      module.emitError("Yosys command '")
+          << command << "' runs a shell command, which is not supported";
+      return signalPassFailure();
+    }
+  }
+
   // Only process `rtlil.module`s.
   Yosys::RTLIL::Design design;
   auto exported = llvm::to_vector(module.getOps<circt::rtlil::ModuleOp>());
@@ -159,8 +165,7 @@ void RunYosysPass::runOnOperation() {
     commands.push_back(topModule.empty()
                            ? "hierarchy -check -auto-top"
                            : "hierarchy -check -top " + topModule);
-  for (const std::string &command : splitScript(script))
-    commands.push_back(command);
+  llvm::append_range(commands, scriptCommands);
 
   // Collect error messages from caught failures in `YosysScript.cpp`.
   circt::yosys::LogCapture capture(quiet);
