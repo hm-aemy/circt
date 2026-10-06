@@ -57,10 +57,10 @@ hw.module @top(in %x : i8, out y : i8) {
 // -----
 
 // A zero-width value has no `!rtlil.val`: Yosys drops a zero-width signal
-// rather than carrying it, so `ImportRTLIL` rejects one too. Failing the
-// legalization here keeps the two ends agreeing.
+// rather than carrying it, so `ImportRTLIL` rejects one too. Rejecting it here
+// keeps the two ends agreeing.
 hw.module @top(in %x : i8, out y : i8) {
-  // expected-error@+1 {{failed to legalize operation 'comb.extract' that was explicitly marked illegal}}
+  // expected-error@+1 {{'comb.extract' op result has type 'i0', which has no RTLIL representation}}
   %0 = comb.extract %x from 0 : (i8) -> i0
   %1 = comb.concat %x, %0 : i8, i0
   hw.output %1 : i8
@@ -84,9 +84,12 @@ hw.module @zero_width_output(in %x : i1, out y : i0) {
 
 // -----
 
-// A register of zero width cannot be converted.
-hw.module @zero_width_reg(in %clk : !seq.clock, in %d : i1) {
+// The first unconvertible value is reported, so a zero-width register is
+// caught at the constant feeding it.
+hw.module @zero_width_const(in %clk : !seq.clock, in %x : i8, out y : i8) {
+  // expected-error@below {{'hw.constant' op result has type 'i0', which has no RTLIL representation}}
   %c = hw.constant 0 : i0
-  // expected-error@below {{failed to legalize operation 'seq.compreg' that was explicitly marked illegal}}
   %r = seq.compreg %c, %clk : i0
+  %0 = comb.concat %x, %r : i8, i0
+  hw.output %0 : i8
 }

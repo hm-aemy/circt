@@ -729,9 +729,10 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
     moduleOp.erase();
   }
 
-  // Reject ports without an RTLIL type here, after the parametric templates
-  // are gone: `hw.module` is not illegal, so a failed `ModuleConversion` would
-  // otherwise not fail the pass.
+  // Reject ports and values without an RTLIL type up front: `hw.module` is not
+  // illegal, so a failed `ModuleConversion` would not fail the pass, and comb
+  // or seq ops would only get a generic legalization error. This runs after
+  // the parametric templates are erased, as their port types are parametric.
   for (auto moduleOp : module.getOps<hw::HWModuleOp>()) {
     for (auto &port : moduleOp.getPortList()) {
       if (converter.convertType(port.type))
@@ -740,6 +741,25 @@ static LogicalResult prepareForConversion(mlir::ModuleOp module,
              << port.getName() << "' has type " << port.type
              << ", which has no RTLIL representation";
     }
+
+    // Catch integer values whose width RTLIL cannot hold, such as `i0`. Only
+    // ops this pass converts are checked, and only integer types: any other
+    // type means the op itself is unsupported, which legalization reports.
+    auto walk = moduleOp.walk([&](Operation *op) -> mlir::WalkResult {
+      if (!isa<comb::CombDialect, seq::SeqDialect>(op->getDialect()) &&
+          !isa<hw::ConstantOp>(op))
+        return mlir::WalkResult::advance();
+      for (Type type : op->getResultTypes()) {
+        if (!isa<IntegerType, hw::IntType>(type) || converter.convertType(type))
+          continue;
+        op->emitOpError("result has type ")
+            << type << ", which has no RTLIL representation";
+        return mlir::WalkResult::interrupt();
+      }
+      return mlir::WalkResult::advance();
+    });
+    if (walk.wasInterrupted())
+      return failure();
   }
   return success();
 }
