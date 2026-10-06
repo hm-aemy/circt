@@ -6,18 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The one part of the run-yosys pass that needs exceptions.
-//
-// Yosys reports a recoverable command error, an unknown command or a bad
-// argument, by throwing `log_cmd_error_exception`, and catching it is the only
-// way to turn a bad script into a diagnostic rather than a process exit. But
-// enabling exceptions on a translation unit also enables RTTI (`AddLLVM.cmake`
-// couples them), and a TU with RTTI that derives from the non-RTTI
-// `mlir::Pass` does not link.
-//
-// So the `catch` lives in `YosysScript.cpp`, which gets `-fexceptions` on its
-// own and mentions no MLIR type at all; the pass keeps CIRCT's normal flags and
-// calls through this header.
+// Yosys reports command errors by throwing `log_cmd_error_exception`. Catching
+// it needs exceptions, which `AddLLVM.cmake` couples with RTTI, and an RTTI TU
+// deriving from `mlir::Pass` does not link. So the `catch` lives in
+// `YosysScript.cpp`, built with `-fexceptions` and free of MLIR types.
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,16 +29,9 @@ namespace circt {
 namespace rtlil {
 namespace detail {
 
-/// Run `commands` over `design` in order.
-///
-/// Returns true on success. On a recoverable Yosys error returns false and sets
-/// `failedCommand` and `error`. An *unrecoverable* Yosys error cannot be
-/// reported here at all: `log_error()` ends in `_Exit(1)`, and the only thing
-/// that gets a message out is the `log_error_atexit` hook that
-/// `circt::yosys::initialize()` installs.
-///
-/// Silencing Yosys' log is the caller's job, with `circt::yosys::LogCapture`
-/// around the call: that class names LLVM types, which this header cannot.
+/// Run `commands` over `design` in order. Returns false on a command error and
+/// sets `failedCommand` and `error`. Fatal errors (`log_error`) exit the
+/// process. The caller silences the log with `circt::yosys::LogCapture`.
 bool runYosysScript(const std::vector<std::string> &commands,
                     Yosys::RTLIL::Design *design, std::string &failedCommand,
                     std::string &error);

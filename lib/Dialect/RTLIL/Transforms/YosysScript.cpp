@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Compiled with `-fexceptions` (see this directory's CMakeLists.txt) and
-// deliberately free of MLIR and LLVM types; see `YosysScript.h` for why.
+// Compiled with `-fexceptions` (see CMakeLists.txt) and deliberately free of
+// MLIR and LLVM types.
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,9 +22,8 @@
 bool circt::rtlil::detail::runYosysScript(
     const std::vector<std::string> &commands, Yosys::RTLIL::Design *design,
     std::string &failedCommand, std::string &error) {
-  // `log_cmd_error` only throws when this is set; otherwise it falls through to
-  // `log_error` and the process ends. It is a global, and Yosys' own `shell()`
-  // sets and clears it exactly this way, so restore it on the way out.
+  // Without this global, `log_cmd_error` exits the process instead of throwing.
+  // Restore it afterwards, as Yosys' own `shell()` does.
   bool savedThrow = Yosys::log_cmd_error_throw;
   Yosys::log_cmd_error_throw = true;
 
