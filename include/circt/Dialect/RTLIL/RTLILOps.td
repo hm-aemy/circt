@@ -117,18 +117,17 @@ def WireOp : RTLILOp<"wire"> {
   }];
   // `direction` stands for `port_input` and `port_output`; `inout` sets both.
   // `port_id` and `start_offset` are `I32Attr` because `RTLIL::Wire` declares
-  // both as plain `int`.
-  let arguments = (ins StrAttr:$name
-                       ,DefaultValuedAttr<Signedness,
-                          "::circt::rtlil::Signedness::Unsigned">:$signedness
-                       ,DefaultValuedAttr<I32Attr, "0">:$port_id
-                       ,DefaultValuedAttr<I32Attr, "0">:$start_offset
-                       ,OptionalAttr<PortDirection>:$direction
-                       ,UnitAttr:$upto
+  // both as plain `int`. `src` is not stored, as the export derives it from the
+  // location.
+  let arguments = (ins StrAttr:$name,
+                       DefaultValuedAttr<Signedness,
+                         "::circt::rtlil::Signedness::Unsigned">:$signedness,
+                       DefaultValuedAttr<I32Attr, "0">:$port_id,
+                       DefaultValuedAttr<I32Attr, "0">:$start_offset,
+                       OptionalAttr<PortDirection>:$direction,
+                       UnitAttr:$upto,
                        // The RTLIL `attributes` dict.
-                       ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
-                       // `src` is derived on export.
-  );
+                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes);
   DerivedAttr width = DerivedAttr<"::mlir::IntegerAttr", [{
     return ::mlir::IntegerAttr::get(
         ::mlir::IntegerType::get(getContext(), 32),
@@ -224,13 +223,12 @@ def CellOp : RTLILOp<"cell", [DeclareOpInterfaceMethods<CellOpInterface>]> {
 
     The dialect defines specialized ops, which should be preferred.
   }];
-  let arguments = (ins StrAttr:$name
-                       ,StrAttr:$type
-                       ,Variadic<MValueType>:$connections
-                       ,StrArrayAttr:$ports
-                       ,ParamArrayAttr:$parameters
-                       ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
-  );
+  let arguments = (ins StrAttr:$name,
+                       StrAttr:$type,
+                       Variadic<MValueType>:$connections,
+                       StrArrayAttr:$ports,
+                       ParamArrayAttr:$parameters,
+                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes);
   let assemblyFormat = [{
     $name $type custom<CellPorts>($connections, $ports)
     `parameters` $parameters (`attributes` $rtlil_attributes^)? attr-dict
@@ -253,8 +251,7 @@ def InstanceOp : RTLILOp<"instance", [
                        Variadic<MValueType>:$connections,
                        StrArrayAttr:$ports,
                        ParamArrayAttr:$parameters,
-                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
-  );
+                       DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes);
   let assemblyFormat = [{
     $name $type custom<CellPorts>($connections, $ports)
     `parameters` $parameters (`attributes` $rtlil_attributes^)? attr-dict
