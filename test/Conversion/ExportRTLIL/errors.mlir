@@ -20,7 +20,7 @@ rtlil.module @"\\top" {
 // -----
 
 // A name with no sigil: `RTLIL::IdString` asserts on this.
-// expected-error@+1 {{'rtlil.module' op name nosigil is not a valid RTLIL identifier}}
+// expected-error@+1 {{'rtlil.module' op module name 'nosigil' is not a valid RTLIL identifier}}
 rtlil.module @nosigil {
 }
 
@@ -28,7 +28,7 @@ rtlil.module @nosigil {
 
 // A space in an identifier: Yosys rejects any byte at or below a space.
 rtlil.module @"\\top" {
-  // expected-error@+1 {{'rtlil.wire' op name \a b is not a valid RTLIL identifier}}
+  // expected-error@+1 {{'rtlil.wire' op name '\a b' is not a valid RTLIL identifier}}
   %1 = rtlil.wire "\\a b" : !rtlil<val[1]>
 }
 

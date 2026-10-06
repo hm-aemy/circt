@@ -13,6 +13,7 @@
 #include "circt/Support/LLVM.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -25,6 +26,14 @@ namespace circt::rtlil {
 /// (public) or `$` (generated), and without spaces or control characters.
 /// Yosys aborts on an invalid name, so the dialect has to reject it first.
 bool isValidIdentifier(llvm::StringRef name);
+
+/// Verify that `name` is a valid RTLIL identifier. `kind` names what is being
+/// checked (e.g. "module name") in the diagnostic.
+LogicalResult
+verifyIdentifier(llvm::function_ref<InFlightDiagnostic()> emitError,
+                 llvm::StringRef kind, llvm::StringRef name);
+LogicalResult verifyIdentifier(Operation *op, llvm::StringRef kind,
+                               llvm::StringRef name);
 
 } // namespace circt::rtlil
 

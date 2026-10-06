@@ -197,14 +197,14 @@ rtlil.module @"\\top" {
 }
 // -----
 
-// expected-error@+1 {{'rtlil.module' op name top is not a valid RTLIL identifier}}
+// expected-error@+1 {{'rtlil.module' op module name 'top' is not a valid RTLIL identifier}}
 rtlil.module @top {
 }
 
 // -----
 
 rtlil.module @"\\top" {
-  // expected-error@+1 {{'rtlil.wire' op name w is not a valid RTLIL identifier}}
+  // expected-error@+1 {{'rtlil.wire' op name 'w' is not a valid RTLIL identifier}}
   %1 = rtlil.wire "w" : !rtlil<val[1]>
 }
 
@@ -212,7 +212,7 @@ rtlil.module @"\\top" {
 
 rtlil.module @"\\top" {
   // A space is a control character as far as RTLIL::IdString is concerned.
-  // expected-error@+1 {{op name \a b is not a valid RTLIL identifier}}
+  // expected-error@+1 {{op name '\a b' is not a valid RTLIL identifier}}
   %1 = rtlil.wire "\\a b" : !rtlil<val[1]>
 }
 
@@ -327,7 +327,7 @@ rtlil.module @"\\top" {
 // A port name is an RTLIL identifier: `setPort` interns it as an `IdString`.
 rtlil.module @"\\top" {
   %a = rtlil.wire "\\a" : !rtlil<val[1]>
-  // expected-error@+1 {{'rtlil.cell' op port name A is not a valid RTLIL identifier}}
+  // expected-error@+1 {{'rtlil.cell' op port name 'A' is not a valid RTLIL identifier}}
   "rtlil.cell"(%a) <{name = "$c", type = "$lut", ports = ["A"], parameters = []}> : (!rtlil<val[1]>) -> ()
 }
 

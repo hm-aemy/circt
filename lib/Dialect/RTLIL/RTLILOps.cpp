@@ -87,12 +87,7 @@ static std::optional<StringRef> getDeclaredName(Operation *op) {
 }
 
 LogicalResult rtlil::ModuleOp::verify() {
-  if (!isValidIdentifier(getSymName()))
-    return emitOpError("name ")
-           << getSymName()
-           << " is not a valid RTLIL identifier; it must start with '\\' or "
-              "'$' and contain no spaces or control characters";
-  return success();
+  return verifyIdentifier(*this, "module name", getSymName());
 }
 
 LogicalResult rtlil::ModuleOp::verifyRegions() {
@@ -109,11 +104,8 @@ LogicalResult rtlil::ModuleOp::verifyRegions() {
                             "an rtlil.module body");
 
     if (auto name = getDeclaredName(&op)) {
-      if (!isValidIdentifier(*name))
-        return op.emitOpError("name ")
-               << *name
-               << " is not a valid RTLIL identifier; it must start with '\\' "
-                  "or '$' and contain no spaces or control characters";
+      if (failed(verifyIdentifier(&op, "name", *name)))
+        return failure();
       auto [it, inserted] = declared.try_emplace(*name, &op);
       if (!inserted)
         return op.emitOpError("redeclares the RTLIL name ")

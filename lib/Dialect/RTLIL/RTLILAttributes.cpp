@@ -122,9 +122,9 @@ LogicalResult
 ParameterAttr::verify(llvm::function_ref<InFlightDiagnostic()> emitError,
                       StringAttr name, Attribute value,
                       std::optional<uint16_t> flags) {
-  if (!name || !isValidIdentifier(name.getValue()))
-    return emitError() << "parameter name '" << (name ? name.getValue() : "")
-                       << "' is not a valid RTLIL identifier";
+  if (failed(verifyIdentifier(emitError, "parameter name",
+                              name ? name.getValue() : "")))
+    return failure();
 
   // An RTLIL::Const is a string or a bit vector. `IntegerAttr` is the
   // shorthand for a bit vector that fits in 64 bits and is fully defined;

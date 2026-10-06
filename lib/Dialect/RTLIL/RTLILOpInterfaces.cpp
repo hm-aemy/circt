@@ -31,15 +31,13 @@ LogicalResult rtlil::verifyCellOpInterface(Operation *op) {
   DenseMap<StringRef, unsigned> seen;
   for (auto [index, port] : llvm::enumerate(ports)) {
     StringRef name = cast<StringAttr>(port).getValue();
-    if (!isValidIdentifier(name))
-      return op->emitOpError("port name ")
-             << name
-             << " is not a valid RTLIL identifier; it must start with '\\' or "
-                "'$' and contain no spaces or control characters";
+    if (failed(verifyIdentifier(op, "port name", name)))
+      return failure();
     auto [it, inserted] = seen.try_emplace(name, index);
     if (!inserted)
       return op->emitOpError("connects port ")
-             << name << " twice, at operands " << it->second << " and " << index;
+             << name << " twice, at operands " << it->second << " and "
+             << index;
   }
   return success();
 }

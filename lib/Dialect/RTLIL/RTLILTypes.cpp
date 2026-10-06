@@ -27,14 +27,31 @@ void circt::rtlil::RTLILDialect::registerTypes() {
       >();
 }
 
+// Follow Yosys RTLIL conventions.
+// Identifiers start with either `\` or `$`.
+// Characters at or below space `' '` are not allowed.
 namespace circt::rtlil {
 bool isValidIdentifier(llvm::StringRef name) {
   if (name.empty() || (name.front() != '\\' && name.front() != '$'))
     return false;
-  // Yosys rejects any byte at or below a space, which covers both control
-  // characters and the space itself.
   return llvm::none_of(name, [](char c) {
     return static_cast<unsigned char>(c) <= static_cast<unsigned char>(' ');
   });
+}
+
+LogicalResult
+verifyIdentifier(llvm::function_ref<InFlightDiagnostic()> emitError,
+                 llvm::StringRef kind, llvm::StringRef name) {
+  if (isValidIdentifier(name))
+    return success();
+  return emitError() << kind << " '" << name
+                     << "' is not a valid RTLIL identifier; it must start with "
+                        "'\\' or '$' and contain no spaces or control "
+                        "characters";
+}
+
+LogicalResult verifyIdentifier(Operation *op, llvm::StringRef kind,
+                               llvm::StringRef name) {
+  return verifyIdentifier([op] { return op->emitOpError(); }, kind, name);
 }
 } // namespace circt::rtlil
