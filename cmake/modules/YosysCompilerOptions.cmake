@@ -16,3 +16,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 # Precompiled headers would be built for C++17 and break under C++20.
 set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+
+# Treat the Yosys headers as system headers so their warnings stay quiet. The
+# imported target already does this, but the `obj.*` library copies the plain
+# include directories and would pass them with `-I`.
+include_directories(SYSTEM ${CIRCT_YOSYS_INCLUDEDIR})
