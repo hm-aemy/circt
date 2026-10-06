@@ -316,7 +316,7 @@ rtlil.module @"\\top" {
 // `fixup_ports()` zeroes the port_id of any wire with no direction flag, so
 // this port would silently vanish from `module->ports`.
 rtlil.module @"\\top" {
-  // expected-error@+1 {{'rtlil.wire' op port_id 1 without input or output flag}}
+  // expected-error@+1 {{'rtlil.wire' op port_id 1 without a direction}}
   %p = rtlil.wire "\\p" port 1 : !rtlil<val[1]>
 }
 

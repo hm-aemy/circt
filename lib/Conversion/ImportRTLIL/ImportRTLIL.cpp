@@ -411,10 +411,18 @@ LogicalResult Importer::importModule(Yosys::RTLIL::Module *source) {
     auto wireAttributes = importAttributes(*wire, wireLoc);
     if (failed(wireAttributes))
       return failure();
+    rtlil::PortDirectionAttr direction;
+    if (wire->port_input || wire->port_output)
+      direction = rtlil::PortDirectionAttr::get(
+          context, !wire->port_output  ? rtlil::PortDirection::Input
+                   : !wire->port_input ? rtlil::PortDirection::Output
+                                       : rtlil::PortDirection::InputOutput);
     auto wireOp = rtlil::WireOp::create(
         builder, wireLoc, getType(wire->width), toStringRef(wire->name),
-        wire->is_signed, wire->port_id, wire->start_offset, wire->port_input,
-        wire->port_output, wire->upto, *wireAttributes);
+        wire->is_signed ? rtlil::Signedness::Signed
+                        : rtlil::Signedness::Unsigned,
+        wire->port_id, wire->start_offset, direction, wire->upto,
+        *wireAttributes);
     wireValues.try_emplace(wire, wireOp.getResult());
   }
 

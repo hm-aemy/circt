@@ -18,6 +18,9 @@
 // CHECK-DAG: wire "\\b" input port 2 : [8]
 // CHECK-DAG: wire "\\y" output port 3 : [8]
 // CHECK-DAG: wire "$tmp" : [8]
+// A port that is both input and output is `inout`, and a signed wire is marked.
+// CHECK-DAG: wire "\\io" inout port 4 : [4]
+// CHECK-DAG: wire "\\s" signed : [8]
 
 // Every cell imports as a generic `rtlil.cell`: after techmap or abc most cell
 // types have no dialect op, and the typed ops carry *derived* parameters that

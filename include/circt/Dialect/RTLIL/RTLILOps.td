@@ -115,15 +115,15 @@ def WireOp : RTLILOp<"wire"> {
     are carried to the backends for convenience (`wire [7:4]`, `wire [0:7]`);
     they do not affect bit numbering here.
   }];
-  // Flags are `UnitAttr`s for assembly format bare keywords.
+  // `direction` stands for `port_input` and `port_output`; `inout` sets both.
   // `port_id` and `start_offset` are `I32Attr` because `RTLIL::Wire` declares
   // both as plain `int`.
   let arguments = (ins StrAttr:$name
-                       ,UnitAttr:$is_signed
+                       ,DefaultValuedAttr<Signedness,
+                          "::circt::rtlil::Signedness::Unsigned">:$signedness
                        ,DefaultValuedAttr<I32Attr, "0">:$port_id
                        ,DefaultValuedAttr<I32Attr, "0">:$start_offset
-                       ,UnitAttr:$port_input
-                       ,UnitAttr:$port_output
+                       ,OptionalAttr<PortDirection>:$direction
                        ,UnitAttr:$upto
                        // The RTLIL `attributes` dict.
                        ,DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes
@@ -136,9 +136,21 @@ def WireOp : RTLILOp<"wire"> {
             .getWidth());
   }], "getWidth()">;
   let results = (outs MValueType:$result);
+  let extraClassDeclaration = [{
+    /// `RTLIL::Wire::port_input`: an `input` or `inout` port.
+    bool isPortInput() {
+      auto direction = getDirection();
+      return direction && *direction != ::circt::rtlil::PortDirection::Output;
+    }
+    /// `RTLIL::Wire::port_output`: an `output` or `inout` port.
+    bool isPortOutput() {
+      auto direction = getDirection();
+      return direction && *direction != ::circt::rtlil::PortDirection::Input;
+    }
+  }];
   let assemblyFormat = [{
-    $name (`signed` $is_signed^)? (`input` $port_input^)?
-    (`output` $port_output^)? (`port` $port_id^)? (`offset` $start_offset^)?
+    $name ($signedness^)? ($direction^)? (`port` $port_id^)?
+    (`offset` $start_offset^)?
     (`upto` $upto^)? (`attributes` $rtlil_attributes^)? attr-dict
     `:` type($result)
   }];

@@ -132,10 +132,8 @@ LogicalResult rtlil::ModuleOp::verifyRegions() {
     // `fixup_ports()` will number the port.
     if (portId == 0)
       continue;
-    // Ports need a direction flag.
-    if (!wire.getPortInput() && !wire.getPortOutput())
-      return op.emitOpError("port_id ")
-             << portId << " without input or output flag";
+    if (!wire.getDirection())
+      return op.emitOpError("port_id ") << portId << " without a direction";
     auto [it, inserted] = portIds.try_emplace(portId, &op);
     if (!inserted) {
       auto diag = op.emitOpError("reuses port_id ") << portId;

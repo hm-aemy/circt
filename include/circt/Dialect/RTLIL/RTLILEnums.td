@@ -39,8 +39,8 @@ def Signedness : I8EnumAttr<"Signedness", "Signedness of an RTLIL wire",
 // Direction of an rtlil wire port
 //----------------------------------------------------------------------------//
 
-def Input : I8EnumAttrCase<"Input", 0, "in">;
-def Output : I8EnumAttrCase<"Output", 1, "out">;
+def Input : I8EnumAttrCase<"Input", 0, "input">;
+def Output : I8EnumAttrCase<"Output", 1, "output">;
 def InputOutput : I8EnumAttrCase<"InputOutput", 2, "inout">;
 
 def PortDirection : I8EnumAttr<"PortDirection",

@@ -289,11 +289,11 @@ LogicalResult ModuleEmitter::emitWire(rtlil::WireOp op) {
       toIdString(op.getName()),
       cast<rtlil::MValueType>(op.getResult().getType()).getWidth());
   wire->port_id = op.getPortId();
-  wire->port_input = op.getPortInput();
-  wire->port_output = op.getPortOutput();
+  wire->port_input = op.isPortInput();
+  wire->port_output = op.isPortOutput();
   wire->start_offset = op.getStartOffset();
   wire->upto = op.getUpto();
-  wire->is_signed = op.getIsSigned();
+  wire->is_signed = op.getSignedness() == rtlil::Signedness::Signed;
   setAttributes(wire, op.getRtlilAttributes(), op.getLoc());
   signals.try_emplace(op.getResult(), wire);
   return success();

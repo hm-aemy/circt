@@ -92,12 +92,16 @@ RTLILTypeConverter::RTLILTypeConverter(ConversionPatternContext &rtlilContext)
                                            circt::rtlil::MValueType t,
                                            mlir::ValueRange vals,
                                            mlir::Location pos) -> mlir::Value {
-    bool isInput = vals.empty();
     if (vals.size() > 1)
       return {};
-    auto name =
-        builder.getStringAttr(llvm::formatv("${0}", ++rtlilContext.nameCtr));
-    return rtlil::WireOp::create(builder, pos, t, name, 0, 0, 0, isInput, 0, 0);
+    rtlil::PortDirectionAttr direction;
+    if (vals.empty())
+      direction = rtlil::PortDirectionAttr::get(builder.getContext(),
+                                                rtlil::PortDirection::Input);
+    std::string name = llvm::formatv("${0}", ++rtlilContext.nameCtr);
+    return rtlil::WireOp::create(builder, pos, t, name,
+                                 rtlil::Signedness::Unsigned, /*port_id=*/0,
+                                 /*start_offset=*/0, direction);
   });
 }
 
@@ -388,8 +392,7 @@ struct ModuleConversion : ConversionPatternBase<hw::HWModuleOp> {
           getTypeConverter()->convertType(op.getOutputTypes()[output]), {});
       auto wire = portWire.getDefiningOp<rtlil::WireOp>();
       rewriter.modifyOpInPlace(wire, [&]() {
-        wire.setPortInput(false);
-        wire.setPortOutput(true);
+        wire.setDirection(rtlil::PortDirection::Output);
         wire.setPortId(op.getPortIdForOutputId(output) + 1);
         wire.setName(makeGlobal(
             rewriter, op.getPortName(op.getPortIdForOutputId(output))));
@@ -420,7 +423,7 @@ struct OutputConversion : ConversionPatternBase<hw::OutputOp> {
     llvm::SmallVector<rtlil::WireOp> outputPorts;
     module.getPortWires(outputPorts);
     llvm::erase_if(outputPorts,
-                   [](rtlil::WireOp wire) { return !wire.getPortOutput(); });
+                   [](rtlil::WireOp wire) { return !wire.isPortOutput(); });
 
     auto outputs = adaptor.getOutputs();
     if (outputPorts.size() != outputs.size())

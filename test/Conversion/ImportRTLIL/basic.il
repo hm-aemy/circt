@@ -6,6 +6,8 @@ module \demo
   wire width 8 input 2 \b
   wire width 8 output 3 \y
   wire width 8 $tmp
+  wire width 4 inout 4 \io
+  wire width 8 signed \s
   cell $and $c
     parameter \A_SIGNED 0
     parameter \B_SIGNED 0
