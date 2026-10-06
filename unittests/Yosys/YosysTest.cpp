@@ -6,16 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// End-to-end check that the embedded Yosys library actually works: a design is
-// built in memory, real passes run over it, and the result is read back --
-// without writing a file or spawning the `yosys` binary.
-//
-// This is deliberately more than a smoke test of `initialize()`. `techmap`
-// reads a technology library from Yosys' data directory and `abc` execs
-// `yosys-abc`, so the passes below fail unless *both* paths resolved. That is
-// the failure worth catching: Yosys locates them relative to the running
-// executable, and this test binary does not sit in `bin/`, so it exercises the
-// compiled-in fallback rather than the layout.
+// Runs real Yosys passes on an in-memory design. `techmap` needs the data
+// directory and `abc` needs `yosys-abc`, so this checks the build-time path
+// fallbacks, as the test binary is not in `bin/`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,8 +25,7 @@ using namespace circt;
 
 namespace {
 
-/// Bring the library up once for the whole test binary. `yosys_setup()` is
-/// global state, and Yosys does not support tearing it down and back up.
+/// Initialize once per binary, as Yosys cannot be set up again after shutdown.
 class YosysEnvironment : public ::testing::Environment {
 public:
   void SetUp() override {
@@ -46,9 +38,7 @@ public:
 const auto *const environment =
     ::testing::AddGlobalTestEnvironment(new YosysEnvironment);
 
-/// Build an 8-bit adder as RTLIL, the way a frontend would. Identifiers are
-/// `IdString`s: a leading backslash marks a public name, a leading dollar sign
-/// an internal one.
+/// Build an 8-bit adder as RTLIL.
 Yosys::RTLIL::Module *buildAdder(Yosys::RTLIL::Design *design) {
   auto *module = design->addModule("\\adder");
 
@@ -66,7 +56,7 @@ Yosys::RTLIL::Module *buildAdder(Yosys::RTLIL::Design *design) {
 
 TEST(YosysTest, ResolvesDataDirectory) {
   EXPECT_FALSE(yosys::getDataDir().empty());
-  // Yosys appends to this, so the separator has to be there.
+  // Used as a prefix, so it needs the trailing separator.
   EXPECT_EQ(Yosys::yosys_share_dirname, yosys::getDataDir() + "/");
 }
 
@@ -83,21 +73,17 @@ TEST(YosysTest, RunsPassesOverDesign) {
   Yosys::RTLIL::Design design;
   auto *module = buildAdder(&design);
 
-  // Addressed by the same command strings a script would use.
   Yosys::run_pass("hierarchy -check -top adder", &design);
   Yosys::run_pass("techmap", &design);
   Yosys::run_pass("opt_clean", &design);
 
-  // `techmap` replaces the single `$add` with a gate-level netlist, so the
-  // design is both larger and free of the original cell.
+  // `techmap` replaces the `$add` with gates.
   EXPECT_GT(module->cells().size(), 1u);
   for (auto *cell : module->cells())
     EXPECT_NE(cell->type.str(), "$add");
 }
 
 TEST(YosysTest, RunsAbc) {
-  // Nothing to run against when Yosys was built with an integrated or disabled
-  // ABC; the library reports no executable in that case.
   if (yosys::getAbcExecutable().empty())
     GTEST_SKIP() << "Yosys was built without an external yosys-abc";
 
@@ -109,7 +95,7 @@ TEST(YosysTest, RunsAbc) {
   Yosys::run_pass("abc -g AND,OR,XOR", &design);
   Yosys::run_pass("opt_clean", &design);
 
-  // ABC maps everything onto the gates it was restricted to, plus inverters.
+  // Only the requested gates plus inverters remain.
   EXPECT_GT(module->cells().size(), 0u);
   for (auto *cell : module->cells()) {
     auto type = cell->type.str();

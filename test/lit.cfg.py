@@ -101,9 +101,7 @@ if config.libfst_enabled:
   config.available_features.add('libfst')
 
 if config.yosys_lib_enabled:
-  # Named `libyosys`, not `yosys`: integration_test/lit.cfg.py already uses
-  # `yosys` to mean "the yosys binary is on PATH", which is a different
-  # thing from "CIRCT was linked against libyosys".
+  # Not `yosys`, which integration tests use for the binary on PATH.
   config.available_features.add('libyosys')
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

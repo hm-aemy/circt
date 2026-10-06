@@ -1,5 +1,4 @@
-# The test includes the Yosys headers directly, so it needs the same relaxed
-# compiler settings as the library itself.
+# The test includes the Yosys headers directly, so it needs C++20.
 include(YosysCompilerOptions)
 
 add_circt_unittest(CIRCTYosysTests

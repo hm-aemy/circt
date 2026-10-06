@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Owns Yosys' global state: setup, data paths and log streams. Callers use
+// these helpers instead of including the C++20 Yosys headers.
+//
+//===----------------------------------------------------------------------===//
 
 #include "circt/Yosys/Yosys.h"
 
@@ -16,11 +21,7 @@
 #include <iostream>
 #include <sstream>
 
-// The Yosys headers come last and stay in this translation unit: they need
-// exceptions, RTTI, and C++20 (see `YosysCompilerOptions.cmake`), and their
-// `_YOSYS_` namespace macros do not mix well with LLVM headers. Everything
-// below stays explicitly qualified with `Yosys::` rather than using Yosys' own
-// `USING_YOSYS_NAMESPACE`.
+// Yosys headers last; everything stays explicitly `Yosys::`-qualified.
 #include "kernel/yosys.h"
 
 using namespace circt;
@@ -39,13 +40,9 @@ static YosysState &getState() {
   return state;
 }
 
-/// Directory containing the running executable, or empty if it cannot be
-/// determined.
+/// Directory of the running executable, or empty if unknown.
 static std::string getExecutableDir() {
-  // `getMainExecutable()` queries the OS directly on the platforms that allow
-  // it (`_NSGetExecutablePath`, `/proc/self/exe`, `GetModuleFileNameW`) and
-  // only falls back to `argv0` and the symbol address elsewhere -- a library
-  // has no `argv0`, so pass an address inside it.
+  // A library has no `argv0`, so pass an address inside it for the fallback.
   void *addr = (void *)(intptr_t)getExecutableDir;
   std::string exe = llvm::sys::fs::getMainExecutable("", addr);
   if (exe.empty())
@@ -53,13 +50,10 @@ static std::string getExecutableDir() {
   return std::string(llvm::sys::path::parent_path(exe));
 }
 
-/// Locate Yosys' data directory: the technology libraries and headers its
-/// passes read at runtime.
+/// Locate Yosys' data directory, read by its passes at runtime.
 static std::string resolveDataDir() {
-  // Prefer a data directory next to the running executable, which is how both
-  // CIRCT's build tree and an installed CIRCT are laid out. Checking this first
-  // is what keeps an installed binary from reaching back into the build tree it
-  // was compiled in.
+  // Prefer `../share/yosys`, so an installed binary does not use the build
+  // tree.
   if (std::string exeDir = getExecutableDir(); !exeDir.empty()) {
     llvm::SmallString<128> candidate(exeDir);
     llvm::sys::path::append(candidate, "..", "share", "yosys");
@@ -68,16 +62,14 @@ static std::string resolveDataDir() {
       return std::string(candidate);
   }
 
-  // Fall back to the directory recorded at build time. This covers binaries
-  // that do not sit in `bin/` at all, such as unit tests.
+  // Fall back to the build-time directory, e.g. for unit tests.
   if (llvm::sys::fs::is_directory(CIRCT_YOSYS_DATADIR))
     return CIRCT_YOSYS_DATADIR;
 
   return {};
 }
 
-/// Locate `yosys-abc`. Yosys only ever looks for it in the running executable's
-/// own directory, with no `../` fallback at all.
+/// Locate `yosys-abc` next to the executable or at its build-time path.
 static std::string resolveAbcExecutable() {
   if (std::string exeDir = getExecutableDir(); !exeDir.empty()) {
     llvm::SmallString<128> candidate(exeDir);
@@ -86,8 +78,7 @@ static std::string resolveAbcExecutable() {
       return std::string(candidate);
   }
 
-  // Empty when Yosys was built with an integrated or disabled ABC, in which
-  // case there is nothing to point at and `can_execute()` simply fails.
+  // Empty when ABC is integrated or disabled.
   if (llvm::sys::fs::can_execute(CIRCT_YOSYS_ABC_EXECUTABLE))
     return CIRCT_YOSYS_ABC_EXECUTABLE;
 
@@ -103,36 +94,27 @@ llvm::Error circt::yosys::initialize() {
   if (dataDir.empty())
     return llvm::createStringError(
         llvm::inconvertibleErrorCode(),
-        "unable to locate the Yosys data directory: looked for "
-        "'../share/yosys' next to the running executable and at '%s'",
+        "cannot find the Yosys data directory; looked in '../share/yosys' "
+        "next to the executable and in '%s'",
         CIRCT_YOSYS_DATADIR);
   std::string abcExecutable = resolveAbcExecutable();
 
-  // `yosys_setup()` derives both of these from the location of the running
-  // executable, which does not hold for a CIRCT binary, but it leaves them alone
-  // when they are already set. `yosys_share_dirname` is used as a prefix and
-  // needs the separator.
+  // Set before `yosys_setup()`, which keeps them if set. The share dir is used
+  // as a prefix and needs the trailing separator.
   Yosys::yosys_share_dirname = dataDir + "/";
   Yosys::yosys_abc_executable = abcExecutable;
 
   Yosys::yosys_setup();
 
-  // Yosys writes its diagnostics to its own log streams. It falls back to stderr
-  // for fatal errors when nothing is registered, but ordinary output would still
-  // be discarded, so register a stream for the rest.
+  // Send Yosys' log to stderr; without a stream only fatal errors get through.
   Yosys::log_streams.push_back(&std::cerr);
   Yosys::log_error_stderr = true;
 
-  // `log_error()` ends in `_Exit(1)`: no unwinding, no destructors, no way for
-  // a caller to recover. `log_error_atexit` is the one hook that runs first, so
-  // use it to say what happened and that the exit was Yosys' decision -- the
-  // alternative is a tool that exits 1 with nothing on stderr to explain it.
-  //
-  // Note the explicit flush: `_Exit` will not run `raw_ostream` destructors.
+  // `log_error()` ends in `_Exit(1)`, so report the error from the only hook
+  // that runs first. Flush explicitly, as `_Exit` skips destructors.
   Yosys::log_error_atexit = []() {
-    llvm::errs() << "error: yosys aborted: " << Yosys::log_last_error << "\n"
-                 << "note: yosys ends the process on internal errors, so this "
-                    "could not be turned into a diagnostic\n";
+    llvm::errs() << "error: Yosys aborted: " << Yosys::log_last_error << "\n"
+                 << "note: Yosys exits the process on fatal errors\n";
     llvm::errs().flush();
   };
 
@@ -158,6 +140,8 @@ std::string circt::yosys::getAbcExecutable() {
   return getState().abcExecutable;
 }
 
+// Here rather than in each caller: it swaps the global `log_streams`, and its
+// state stays hidden from code built without Yosys headers.
 struct circt::yosys::LogCapture::Impl {
   std::ostringstream buffer;
   std::vector<std::ostream *> saved;
