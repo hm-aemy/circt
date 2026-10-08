@@ -61,11 +61,11 @@ hw.module @paritymod(in %a: i8, out o: i1) {
 // CHECK-LABEL: rtlil.module @"\\widthmod"
 hw.module @widthmod(in %a: i2, out o0: i6, out o1: i2) {
   // CHECK-DAG: [[A:%[0-9]+]] = wire "\\a"
-  // CHECK-DAG: "rtlil.concat"([[A]], [[A]], [[A]]) : (!rtlil<val[2]>, !rtlil<val[2]>, !rtlil<val[2]>) -> !rtlil<val[6]>
+  // CHECK-DAG: concat [[A]], [[A]], [[A]] : (!rtlil<val[2]>, !rtlil<val[2]>, !rtlil<val[2]>) -> !rtlil<val[6]>
   %0 = comb.replicate %a : (i2) -> i6
   // CHECK-DAG: [[HI:%[0-9]+]] = "rtlil.slice"([[A]]) <{offset = 1 : i32}> : (!rtlil<val[2]>) -> !rtlil<val[1]>
   // CHECK-DAG: [[LO:%[0-9]+]] = "rtlil.slice"([[A]]) <{offset = 0 : i32}> : (!rtlil<val[2]>) -> !rtlil<val[1]>
-  // CHECK-DAG: "rtlil.concat"([[HI]], [[LO]]) : (!rtlil<val[1]>, !rtlil<val[1]>) -> !rtlil<val[2]>
+  // CHECK-DAG: concat [[HI]], [[LO]] : (!rtlil<val[1]>, !rtlil<val[1]>) -> !rtlil<val[2]>
   %1 = comb.reverse %a : i2
   hw.output %0, %1 : i6, i2
 }
@@ -75,7 +75,7 @@ hw.module @widthmod(in %a: i2, out o0: i6, out o1: i2) {
 hw.module @singlemod(in %a: i4, out o: i4) {
   // CHECK-DAG: [[A:%[0-9]+]] = wire "\\a"
   // CHECK-DAG: [[O:%[0-9]+]] = wire "\\o"
-  // CHECK-NOT: rtlil.concat
+  // CHECK-NOT: concat
   // CHECK-DAG: "rtlil.wconnection"([[O]], [[A]])
   %0 = comb.replicate %a : (i4) -> i4
   hw.output %0 : i4

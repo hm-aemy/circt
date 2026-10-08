@@ -207,6 +207,7 @@ def ConcatOp : RTLILOp<"concat", [Pure]> {
   let arguments = (ins Variadic<MValueType>:$inputs);
   let results = (outs MValueType:$result);
   let hasVerifier = 1;
+  let assemblyFormat = "$inputs attr-dict `:` functional-type($inputs, $result)";
 }
 
 //===----------------------------------------------------------------------===//
