@@ -37,6 +37,7 @@
 #include "circt/Conversion/HWArithToHW.h"
 #include "circt/Conversion/HWToBTOR2.h"
 #include "circt/Conversion/HWToLLVM.h"
+#include "circt/Conversion/HWToRTLIL.h"
 #include "circt/Conversion/HWToSMT.h"
 #include "circt/Conversion/HWToSV.h"
 #include "circt/Conversion/HWToSystemC.h"

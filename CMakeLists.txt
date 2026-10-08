@@ -544,6 +544,121 @@ if(CIRCT_BINDINGS_TCL_ENABLED)
 endif()
 
 #-------------------------------------------------------------------------------
+# Yosys Synthesis lib
+#-------------------------------------------------------------------------------
+option(CIRCT_YOSYS_LIB_ENABLED "Enables the Yosys library." OFF)
+set(CIRCT_YOSYS_SOURCE_DIR "" CACHE PATH
+    "Path to a Yosys source checkout, built as part of CIRCT.")
+
+llvm_canonicalize_cmake_booleans(CIRCT_YOSYS_LIB_ENABLED)
+
+if(CIRCT_YOSYS_LIB_ENABLED)
+  message(STATUS "Yosys library is enabled")
+
+  if(NOT CIRCT_YOSYS_SOURCE_DIR)
+    message(FATAL_ERROR
+      "CIRCT_YOSYS_LIB_ENABLED requires CIRCT_YOSYS_SOURCE_DIR to point at a "
+      "Yosys source checkout. Building it also needs flex >= 2.6, "
+      "bison >= 3.6, and Python 3.7+.")
+  endif()
+  if(NOT EXISTS "${CIRCT_YOSYS_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+      "CIRCT_YOSYS_SOURCE_DIR does not look like a Yosys checkout: "
+      "${CIRCT_YOSYS_SOURCE_DIR}")
+  endif()
+
+  # Yosys is built with `ExternalProject_Add` rather than `add_subdirectory()`:
+  # it expects to be the top-level project and vendors slang, fmt and
+  # tomlplusplus under target names CIRCT also uses.
+  #
+  # It installs into `${CMAKE_BINARY_DIR}`, so `lib/yosys/`, `share/yosys/` and
+  # `bin/yosys-abc` line up with CIRCT's own layout.
+  #
+  # `libyosys` stays shared. A static one has no CMake package, needs
+  # whole-archive linking for its pass registration, and would add a second
+  # copy of fmt to CIRCT's binaries.
+  include(ExternalProject)
+
+  set(CIRCT_YOSYS_PREFIX ${CMAKE_BINARY_DIR})
+  set(CIRCT_YOSYS_DATADIR ${CIRCT_YOSYS_PREFIX}/share/yosys)
+  set(CIRCT_YOSYS_INCLUDEDIR ${CIRCT_YOSYS_DATADIR}/include)
+  set(CIRCT_YOSYS_LIBDIR ${CIRCT_YOSYS_PREFIX}/lib/yosys)
+  set(CIRCT_YOSYS_LIBRARY
+      ${CIRCT_YOSYS_LIBDIR}/libyosys${CMAKE_SHARED_LIBRARY_SUFFIX})
+  set(CIRCT_YOSYS_ABC_EXECUTABLE
+      ${CIRCT_YOSYS_PREFIX}/bin/yosys-abc${CMAKE_EXECUTABLE_SUFFIX})
+
+  ExternalProject_Add(yosys_external
+    # No download method, so the checkout is built in place.
+    SOURCE_DIR ${CIRCT_YOSYS_SOURCE_DIR}
+    CMAKE_ARGS
+      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
+      -DCMAKE_INSTALL_PREFIX=${CIRCT_YOSYS_PREFIX}
+      -DBUILD_SHARED_LIBS=ON
+      -DYOSYS_INSTALL_LIBRARY=ON
+      # Skip the `yosys` driver. `yosys-abc` is still installed.
+      -DYOSYS_INSTALL_DRIVER=OFF
+      # CIRCT has its own slang, so avoid the target collisions.
+      -DYOSYS_WITHOUT_SLANG=ON
+      # Do not depend on what happens to be installed.
+      -DYOSYS_WITHOUT_TCL=ON
+      -DYOSYS_WITHOUT_READLINE=ON
+      -DYOSYS_WITHOUT_EDITLINE=ON
+    BUILD_BYPRODUCTS ${CIRCT_YOSYS_LIBRARY}
+    # Rebuild when the Yosys checkout changes.
+    BUILD_ALWAYS TRUE
+    USES_TERMINAL_BUILD TRUE
+  )
+
+  # `YosysConfig.cmake` does not exist yet at configure time, so declare the
+  # imported target by hand, mirroring what it would declare.
+  file(MAKE_DIRECTORY ${CIRCT_YOSYS_INCLUDEDIR})
+
+  add_library(Yosys::libyosys SHARED IMPORTED GLOBAL)
+  set_target_properties(Yosys::libyosys PROPERTIES
+    IMPORTED_LOCATION             ${CIRCT_YOSYS_LIBRARY}
+    INTERFACE_INCLUDE_DIRECTORIES ${CIRCT_YOSYS_INCLUDEDIR}
+    # See `YosysCompilerOptions.cmake` for why this is also set per directory.
+    INTERFACE_COMPILE_FEATURES    cxx_std_20
+  )
+  # Anything linking Yosys::libyosys waits for the external build.
+  add_dependencies(Yosys::libyosys yosys_external)
+
+  message(STATUS "Building Yosys from ${CIRCT_YOSYS_SOURCE_DIR}")
+  message(STATUS "  library:    ${CIRCT_YOSYS_LIBRARY}")
+  message(STATUS "  data files: ${CIRCT_YOSYS_DATADIR}")
+  message(STATUS "  ABC:        ${CIRCT_YOSYS_ABC_EXECUTABLE}")
+
+  # libyosys lives outside CIRCT's library directory, so add it to the RPATH.
+  list(APPEND CMAKE_INSTALL_RPATH
+       ${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}/yosys)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+  # The build-tree RPATH must be explicit: `CMAKE_INSTALL_RPATH_USE_LINK_PATH`
+  # reads the library at generate time, before ExternalProject has built it.
+  list(APPEND CMAKE_BUILD_RPATH ${CIRCT_YOSYS_LIBDIR})
+
+  # Install Yosys along with CIRCT. The library is installed by name: on a
+  # case-insensitive filesystem `lib/yosys` is also CIRCT's `lib/Yosys` build
+  # directory, so installing the directory would copy CMake's files too.
+  install(PROGRAMS ${CIRCT_YOSYS_LIBRARY}
+    DESTINATION lib${LLVM_LIBDIR_SUFFIX}/yosys
+    COMPONENT yosys)
+  install(DIRECTORY ${CIRCT_YOSYS_PREFIX}/lib/cmake/yosys/
+    DESTINATION lib${LLVM_LIBDIR_SUFFIX}/cmake/yosys
+    COMPONENT yosys)
+  install(DIRECTORY ${CIRCT_YOSYS_DATADIR}/
+    DESTINATION share/yosys
+    COMPONENT yosys)
+  install(PROGRAMS ${CIRCT_YOSYS_ABC_EXECUTABLE}
+    DESTINATION bin
+    COMPONENT yosys)
+endif()
+
+#-------------------------------------------------------------------------------
 # slang Verilog Frontend
 #-------------------------------------------------------------------------------
 

@@ -637,6 +637,21 @@ def ConvertHWToBTOR2 : Pass<"convert-hw-to-btor2", "mlir::ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// ConvertHWToRTLIL
+//===----------------------------------------------------------------------===//
+
+def ConvertHWToRTLIL : Pass<"convert-hw-to-rtlil", "mlir::ModuleOp"> {
+  let summary = "Lower HW/Comb/Seq ops to RTLIL ops";
+  let description = [{
+    This pass lowers an elaborated HW design to RTLIL, one `rtlil.module` per
+    `hw.module`.
+  }];
+  let dependentDialects = [
+    "circt::rtlil::RTLILDialect",
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // LTLToCore
 //===----------------------------------------------------------------------===//
 

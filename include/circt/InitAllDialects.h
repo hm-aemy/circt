@@ -42,6 +42,7 @@
 #ifdef CIRCT_INCLUDE_TESTS
 #include "circt/Dialect/RTGTest/IR/RTGTestDialect.h"
 #endif
+#include "circt/Dialect/RTLIL/RTLILDialect.h"
 #include "circt/Dialect/SSP/SSPDialect.h"
 #include "circt/Dialect/SV/SVDialect.h"
 #include "circt/Dialect/Seq/SeqDialect.h"
@@ -86,6 +87,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
 #ifdef CIRCT_INCLUDE_TESTS
     rtgtest::RTGTestDialect,
 #endif
+    rtlil::RTLILDialect,
     seq::SeqDialect,
     sim::SimDialect,
     mlir::smt::SMTDialect,

@@ -100,4 +100,8 @@ if config.slang_frontend_enabled:
 if config.libfst_enabled:
   config.available_features.add('libfst')
 
+if config.yosys_lib_enabled:
+  # Not `yosys`, which integration tests use for the binary on PATH.
+  config.available_features.add('libyosys')
+
 llvm_config.add_tool_substitutions(tools, tool_dirs)

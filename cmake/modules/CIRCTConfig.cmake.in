@@ -17,6 +17,15 @@ set_property(GLOBAL PROPERTY CIRCT_DIALECT_LIBS "@CIRCT_DIALECT_LIBS@")
 set_property(GLOBAL PROPERTY CIRCT_CONVERSION_LIBS "@CIRCT_CONVERSION_LIBS@")
 set_property(GLOBAL PROPERTY CIRCT_TRANSLATION_LIBS "@CIRCT_TRANSLATION_LIBS@")
 
+# CIRCT libraries that link Yosys record `$<LINK_ONLY:Yosys::libyosys>` in
+# CIRCTTargets.cmake, so the imported target has to exist before that file is
+# loaded. Yosys' own CMake package is installed next to CIRCT's, which is what
+# `../yosys` resolves to in both the build tree and an installation.
+set(CIRCT_YOSYS_LIB_ENABLED @CIRCT_YOSYS_LIB_ENABLED@)
+if(CIRCT_YOSYS_LIB_ENABLED AND NOT TARGET Yosys::libyosys)
+  find_package(Yosys REQUIRED CONFIG HINTS "${CIRCT_CMAKE_DIR}/../yosys")
+endif()
+
 # Provide all our library targets to users.
 if(NOT TARGET CIRCTSupport)
   @CIRCT_CONFIG_INCLUDE_EXPORTS@

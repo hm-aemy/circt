@@ -5,6 +5,10 @@ if(CIRCT_SLANG_FRONTEND_ENABLED)
   add_compile_definitions(CIRCT_SLANG_FRONTEND_ENABLED)
 endif()
 
+if(CIRCT_YOSYS_LIB_ENABLED)
+  add_compile_definitions(CIRCT_YOSYS_LIB_ENABLED)
+endif()
+
 set(LLVM_LINK_COMPONENTS
   Support
 )
