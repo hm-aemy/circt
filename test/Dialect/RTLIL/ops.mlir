@@ -67,7 +67,7 @@ rtlil.module @"\\top" {
 rtlil.module @"\\sigspec" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
   %c = "rtlil.const"() <{value = #rtlil.const<"01">}> : () -> !rtlil<val[2]>
-  %s = "rtlil.slice"(%w) <{offset = 3 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
+  %s = rtlil.slice %w offset 3 : (!rtlil<val[8]>) -> !rtlil<val[4]>
   %y = rtlil.concat %s, %c : (!rtlil<val[4]>, !rtlil<val[2]>) -> !rtlil<val[6]>
 }
 

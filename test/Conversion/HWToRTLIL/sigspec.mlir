@@ -19,7 +19,7 @@ hw.module @concatmod(in %msb : i3, in %mid : i2, in %lsb : i1, out res : i6) {
 hw.module @extractmod(in %in : i8, out res : i3) {
   // CHECK-DAG: [[IN:%[0-9]+]] = wire "\\in" input
   // CHECK-DAG: [[RES:%[0-9]+]] = wire "\\res" output
-  // CHECK-DAG: [[SLICE:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 3 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[3]>
+  // CHECK-DAG: [[SLICE:%[0-9]+]] = slice [[IN]] offset 3 : (!rtlil<val[8]>) -> !rtlil<val[3]>
   // CHECK-DAG: "rtlil.wconnection"([[RES]], [[SLICE]])
   %0 = comb.extract %in from 3 : (i8) -> i3
   hw.output %0 : i3
@@ -29,8 +29,8 @@ hw.module @extractmod(in %in : i8, out res : i3) {
 // CHECK-LABEL: rtlil.module @"\\mixedmod"
 hw.module @mixedmod(in %in : i8, out res : i4) {
   // CHECK-DAG: [[IN:%[0-9]+]] = wire "\\in" input
-  // CHECK-DAG: [[HI:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 4 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
-  // CHECK-DAG: [[LO:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 0 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
+  // CHECK-DAG: [[HI:%[0-9]+]] = slice [[IN]] offset 4 : (!rtlil<val[8]>) -> !rtlil<val[4]>
+  // CHECK-DAG: [[LO:%[0-9]+]] = slice [[IN]] offset 0 : (!rtlil<val[8]>) -> !rtlil<val[4]>
   // CHECK-DAG: and "{{[^"]*}}"([[HI]], [[LO]], [[AND:%[0-9]+]]){{.*}}width = 4
   %hi = comb.extract %in from 4 : (i8) -> i4
   %lo = comb.extract %in from 0 : (i8) -> i4
@@ -42,8 +42,8 @@ hw.module @mixedmod(in %in : i8, out res : i4) {
 // CHECK-LABEL: rtlil.module @"\\swapmod"
 hw.module @swapmod(in %in : i8, out res : i8) {
   // CHECK-DAG: [[IN:%[0-9]+]] = wire "\\in" input
-  // CHECK-DAG: [[HI:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 4 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
-  // CHECK-DAG: [[LO:%[0-9]+]] = "rtlil.slice"([[IN]]) <{offset = 0 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
+  // CHECK-DAG: [[HI:%[0-9]+]] = slice [[IN]] offset 4 : (!rtlil<val[8]>) -> !rtlil<val[4]>
+  // CHECK-DAG: [[LO:%[0-9]+]] = slice [[IN]] offset 0 : (!rtlil<val[8]>) -> !rtlil<val[4]>
   // CHECK-DAG: concat [[HI]], [[LO]] : (!rtlil<val[4]>, !rtlil<val[4]>) -> !rtlil<val[8]>
   %hi = comb.extract %in from 4 : (i8) -> i4
   %lo = comb.extract %in from 0 : (i8) -> i4

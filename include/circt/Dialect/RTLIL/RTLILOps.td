@@ -195,6 +195,7 @@ def SliceOp : RTLILOp<"slice", [Pure]> {
   let arguments = (ins MValueType:$input, I32Attr:$offset);
   let results = (outs MValueType:$result);
   let hasVerifier = 1;
+  let assemblyFormat = "$input `offset` $offset attr-dict `:` functional-type($input, $result)";
 }
 
 def ConcatOp : RTLILOp<"concat", [Pure]> {

@@ -271,7 +271,7 @@ rtlil.module @"\\top" {
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
   // expected-error@+1 {{'rtlil.slice' op slice of 4 bits at offset 6 is out of bounds for the 8-bit input}}
-  %s = "rtlil.slice"(%w) <{offset = 6 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[4]>
+  %s = rtlil.slice %w offset 6 : (!rtlil<val[8]>) -> !rtlil<val[4]>
 }
 
 // -----

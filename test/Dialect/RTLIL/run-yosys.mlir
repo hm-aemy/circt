@@ -32,5 +32,5 @@ hw.module @demo(in %a: i8, in %b: i8, in %c: i8, out y: i8) {
 
 // Those gates drive single bits of the 8-bit wires, so every port is a slice.
 // Without `rtlil.slice` this design could not be imported at all.
-// CHECK-DAG: "rtlil.slice"(%{{.+}}) <{offset = 0 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[1]>
-// CHECK-DAG: "rtlil.slice"(%{{.+}}) <{offset = 7 : i32}> : (!rtlil<val[8]>) -> !rtlil<val[1]>
+// CHECK-DAG: slice %{{.+}} offset 0 : (!rtlil<val[8]>) -> !rtlil<val[1]>
+// CHECK-DAG: slice %{{.+}} offset 7 : (!rtlil<val[8]>) -> !rtlil<val[1]>
