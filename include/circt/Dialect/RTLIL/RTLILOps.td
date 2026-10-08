@@ -120,11 +120,11 @@ def WireOp : RTLILOp<"wire"> {
   // both as plain `int`. `src` is not stored, as the export derives it from the
   // location.
   let arguments = (ins StrAttr:$name,
+                       OptionalAttr<PortDirection>:$direction,
+                       DefaultValuedAttr<I32Attr, "0">:$port_id,
                        DefaultValuedAttr<Signedness,
                          "::circt::rtlil::Signedness::Unsigned">:$signedness,
-                       DefaultValuedAttr<I32Attr, "0">:$port_id,
                        DefaultValuedAttr<I32Attr, "0">:$start_offset,
-                       OptionalAttr<PortDirection>:$direction,
                        UnitAttr:$upto,
                        // The RTLIL `attributes` dict.
                        DefaultValuedAttr<ParamArrayAttr, "{}">:$rtlil_attributes);
@@ -148,10 +148,9 @@ def WireOp : RTLILOp<"wire"> {
     }
   }];
   let assemblyFormat = [{
-    $name ($signedness^)? ($direction^)? (`port` $port_id^)?
-    (`offset` $start_offset^)?
-    (`upto` $upto^)? (`attributes` $rtlil_attributes^)? attr-dict
-    `:` type($result)
+    $name ($direction^)? (`port` $port_id^)?
+    ($signedness^)? (`offset` $start_offset^)? (`upto` $upto^)?
+    (`attrs` $rtlil_attributes^)? attr-dict `:` qualified(type($result))
   }];
 }
 

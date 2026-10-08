@@ -2,7 +2,7 @@
 // REQUIRES: libyosys
 
 // CHECK-LABEL: rtlil.module @"\\spec"
-// CHECK-DAG: %[[W:.+]] = wire "\\w" input port 1 : [8]
+// CHECK-DAG: %[[W:.+]] = wire "\\w" input port 1 : !rtlil<val[8]>
 
 // `{ \w [6:3] 2'01 }` is four bits of \w above two constant bits. Chunks are
 // least significant first, so the constant comes first and the slice second --

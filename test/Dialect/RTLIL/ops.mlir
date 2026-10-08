@@ -16,7 +16,7 @@ rtlil.module @"\\top" {
   // A fully attributed wire. `port_id` is 1 rather than an arbitrary number
   // because ports must be numbered exactly 1..N -- `fixup_ports()` renumbers
   // anything else behind the exporter's back.
-  %2 = rtlil.wire "$2" signed output port 1 offset 3 upto : !rtlil<val[64]>
+  %2 = rtlil.wire "$2" output port 1 signed offset 3 upto : !rtlil<val[64]>
 
   %3 = rtlil.const <"-zx10"> : !rtlil<val[5]>
   %4 = rtlil.wire "$4" : !rtlil<val[32]>

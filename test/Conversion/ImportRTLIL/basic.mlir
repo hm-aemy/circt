@@ -14,13 +14,13 @@
 // CHECK-SAME:    attributes [#rtlil.param<"\\top" 1 : i32>]
 
 // Ports keep their `port_id`, which is what carries the port ordering.
-// CHECK-DAG: wire "\\a" input port 1 : [8]
-// CHECK-DAG: wire "\\b" input port 2 : [8]
-// CHECK-DAG: wire "\\y" output port 3 : [8]
-// CHECK-DAG: wire "$tmp" : [8]
+// CHECK-DAG: wire "\\a" input port 1 : !rtlil<val[8]>
+// CHECK-DAG: wire "\\b" input port 2 : !rtlil<val[8]>
+// CHECK-DAG: wire "\\y" output port 3 : !rtlil<val[8]>
+// CHECK-DAG: wire "$tmp" : !rtlil<val[8]>
 // A port that is both input and output is `inout`, and a signed wire is marked.
-// CHECK-DAG: wire "\\io" inout port 4 : [4]
-// CHECK-DAG: wire "\\s" signed : [8]
+// CHECK-DAG: wire "\\io" inout port 4 : !rtlil<val[4]>
+// CHECK-DAG: wire "\\s" signed : !rtlil<val[8]>
 
 // Every cell imports as a generic `rtlil.cell`: after techmap or abc most cell
 // types have no dialect op, and the typed ops carry *derived* parameters that
@@ -38,7 +38,7 @@
 // RUN: circt-translate --import-rtlil %S/basic.il --mlir-print-debuginfo \
 // RUN:   | FileCheck %s --check-prefix=LOC
 // The `src` is gone from the attribute dict, so no `attributes` is printed...
-// LOC: wire "\\a" input port 1 : [8] loc(
+// LOC: wire "\\a" input port 1 : !rtlil<val[8]> loc(
 // ...and has become a real source location, keeping the end of the `src`
 // range rather than narrowing it to its start.
 // LOC-DAG: loc("demo.v":3:1 to :9)

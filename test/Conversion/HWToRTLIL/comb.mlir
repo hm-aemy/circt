@@ -51,7 +51,7 @@ hw.module @shiftmod(in %a: i8, in %b: i8, out o0: i8, out o1: i8, out o2: i8) {
 hw.module @paritymod(in %a: i8, out o: i1) {
   // CHECK-DAG: [[A:%[0-9]+]] = wire "\\a"
   // CHECK-DAG: reduce_xor "{{[^"]*}}"([[A]], [[RES:%[0-9]+]]) {aSigned = 0 : i32{{.*}}width = 8
-  // CHECK-DAG: [[RES]] = wire "{{[^"]*}}" : [1]
+  // CHECK-DAG: [[RES]] = wire "{{[^"]*}}" : !rtlil<val[1]>
   %0 = comb.parity %a : i8
   hw.output %0 : i1
 }

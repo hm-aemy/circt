@@ -8,11 +8,11 @@ hw.module @cmpmod(in %x: i32) {
   %1 = hw.constant 500 : i32
   %2 = hw.constant 700 : i32
   // CHECK-DAG: eq "{{[^"]*}}"([[X]], [[CONST700]], [[RES:%[0-9]+]]){{.*}}width = 32
-  // CHECK-DAG: [[RES]] = wire "{{[^"]*}}" : [1]
+  // CHECK-DAG: [[RES]] = wire "{{[^"]*}}" : !rtlil<val[1]>
   %res1 = comb.icmp bin eq %x, %2 : i32
   %res2 = comb.icmp bin slt %1, %x : i32
   // CHECK-DAG: lt "{{[^"]*}}"([[CONST500]], [[X]], [[RES2:%[0-9]+]]){{.*}}opsSigned = 1 : i32{{.*}}width = 32
-  // CHECK-DAG: [[RES2]] = wire "{{[^"]*}}" : [1]
+  // CHECK-DAG: [[RES2]] = wire "{{[^"]*}}" : !rtlil<val[1]>
 }
 
 // Every predicate that has a cell, without `bin`: the cells are the four-state

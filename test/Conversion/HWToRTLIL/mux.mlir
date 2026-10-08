@@ -8,6 +8,6 @@ hw.module @muxmod(in %select : i1) {
   %1 = hw.constant 500 : i32
   %2 = hw.constant 700 : i32
   // CHECK-DAG: mux "{{[^"]*}}"([[CONST700]], [[CONST500]], [[SELECT]], [[RES:%[0-9+]]]){{.*}}width = 32
-  // CHECK-DAG: [[RES]] = wire "{{[^"]*}}" : [32]
+  // CHECK-DAG: [[RES]] = wire "{{[^"]*}}" : !rtlil<val[32]>
   %res1 = comb.mux bin %select, %1, %2 : i32
 }
