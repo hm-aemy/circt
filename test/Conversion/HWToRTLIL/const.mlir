@@ -6,8 +6,8 @@ hw.module @ormod(in %x: i32, in %y: i32, out res1: i32, out res2: i32) {
   // CHECK-DAG: [[Y:%[0-9]+]] = wire "\\y" input port 2 :
   // CHECK-DAG: [[RES1:%[0-9]+]] = wire "\\res1" output port 3
   // CHECK-DAG: [[RES2:%[0-9]+]] = wire "\\res2" output port 4
-  // CHECK-DAG: [[CONST500:%[0-9]+]] = const <"00000000000000000000000111110100"> : [32]
-  // CHECK-DAG: [[CONST700:%[0-9]+]] = const <"00000000000000000000001010111100"> : [32]
+  // CHECK-DAG: [[CONST500:%[0-9]+]] = const <"00000000000000000000000111110100"> : !rtlil<val[32]>
+  // CHECK-DAG: [[CONST700:%[0-9]+]] = const <"00000000000000000000001010111100"> : !rtlil<val[32]>
   %1 = hw.constant 500 : i32
   %2 = hw.constant 700 : i32
   // The cells drive internal wires; the output ports are driven from those by a

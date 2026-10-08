@@ -8,7 +8,7 @@
 rtlil.module @"\\top" {
   %w = rtlil.wire "\\w" : !rtlil<val[4]>
 
-  // CHECK: %[[C:.+]] = const <"1010"> : [4]
+  // CHECK: %[[C:.+]] = const <"1010"> : !rtlil<val[4]>
   // CHECK-NOT: const
   %a = rtlil.const <"1010"> : !rtlil<val[4]>
   %b = rtlil.const <"1010"> : !rtlil<val[4]>

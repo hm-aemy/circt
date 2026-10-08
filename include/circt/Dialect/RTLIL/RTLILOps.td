@@ -183,7 +183,7 @@ def ConstOp : RTLILOp<"const", [Pure, AllMatch<[
   }];
   let arguments = (ins ConstAttr:$value);
   let results = (outs MValueType:$result);
-  let assemblyFormat = "$value attr-dict `:` type($result)";
+  let assemblyFormat = "$value attr-dict `:` qualified(type($result))";
 }
 
 def SliceOp : RTLILOp<"slice", [Pure]> {

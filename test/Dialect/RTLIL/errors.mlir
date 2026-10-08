@@ -19,7 +19,7 @@ rtlil.module @"\\top" {
 // -----
 
 rtlil.module @"\\top" {
-  %1 = "rtlil.const"() <{value = #rtlil.const<"0">}> : () -> !rtlil<val[32]>
+  %1 = rtlil.const <"0"> : !rtlil<val[32]>
   // expected-error@-1 {{'rtlil.const' op failed to verify that bitwidth matches}}
 }
 
@@ -28,7 +28,7 @@ rtlil.module @"\\top" {
 rtlil.module @"\\top" {
   // A bit vector is written with the RTLIL state characters and nothing else.
   // expected-error@+1 {{expected a bit string of '0', '1', 'x', 'z' or '-'}}
-  %1 = "rtlil.const"() <{value = #rtlil.const<"2">}> : () -> !rtlil<val[1]>
+  %1 = rtlil.const <"2"> : !rtlil<val[1]>
 }
 
 // -----

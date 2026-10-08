@@ -18,10 +18,10 @@ rtlil.module @"\\top" {
   // anything else behind the exporter's back.
   %2 = rtlil.wire "$2" signed output port 1 offset 3 upto : !rtlil<val[64]>
 
-  %3 = "rtlil.const"() <{value = #rtlil.const<"-zx10">}> : () -> !rtlil<val[5]>
+  %3 = rtlil.const <"-zx10"> : !rtlil<val[5]>
   %4 = rtlil.wire "$4" : !rtlil<val[32]>
   %5 = rtlil.wire "$5" : !rtlil<val[32]>
-  %6 = "rtlil.const"() <{value = #rtlil.const<"000000000000000000000000000-zx10">}> : () -> !rtlil<val[32]>
+  %6 = rtlil.const <"000000000000000000000000000-zx10"> : !rtlil<val[32]>
 
   rtlil.and "$and"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.or "$or"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
@@ -66,7 +66,7 @@ rtlil.module @"\\top" {
 // least significant first.
 rtlil.module @"\\sigspec" {
   %w = rtlil.wire "\\w" : !rtlil<val[8]>
-  %c = "rtlil.const"() <{value = #rtlil.const<"01">}> : () -> !rtlil<val[2]>
+  %c = rtlil.const <"01"> : !rtlil<val[2]>
   %s = rtlil.slice %w offset 3 : (!rtlil<val[8]>) -> !rtlil<val[4]>
   %y = rtlil.concat %s, %c : (!rtlil<val[4]>, !rtlil<val[2]>) -> !rtlil<val[6]>
 }

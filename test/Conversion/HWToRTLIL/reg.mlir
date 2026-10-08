@@ -4,8 +4,8 @@
 hw.module @regmod(in %clk : !seq.clock, in %reset : i1) {
   // CHECK-DAG: [[CLK:%[0-9]+]] = wire "{{[^"]*}}" input port 1 :
   // CHECK-DAG: [[RESET:%[0-9]+]] = wire "{{[^"]*}}" input port 2 :
-  // CHECK-DAG: [[CONST500:%[0-9]+]] = const <"00000000000000000000000111110100"> : [32]
-  // CHECK-DAG: [[CONST700:%[0-9]+]] = const <"00000000000000000000001010111100"> : [32]
+  // CHECK-DAG: [[CONST500:%[0-9]+]] = const <"00000000000000000000000111110100"> : !rtlil<val[32]>
+  // CHECK-DAG: [[CONST700:%[0-9]+]] = const <"00000000000000000000001010111100"> : !rtlil<val[32]>
   %1 = hw.constant 500 : i32
   %2 = hw.constant 700 : i32
   // CHECK-DAG: dff "\\inner_symbol"([[CLK]], [[CONST500]], [[RES:%[0-9]+]]){{.*}}width = 32
