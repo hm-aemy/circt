@@ -30,7 +30,7 @@
 // CHECK-SAME: parameters [#rtlil.param<"\\A_SIGNED" 0 : i32>, #rtlil.param<"\\A_WIDTH" 8 : i32>, #rtlil.param<"\\B_SIGNED" 0 : i32>, #rtlil.param<"\\B_WIDTH" 8 : i32>, #rtlil.param<"\\Y_WIDTH" 8 : i32>]
 
 // Module-level `connect` statements become `rtlil.wconnection`.
-// CHECK: "rtlil.wconnection"
+// CHECK: wconnection
 
 // An RTLIL `src` attribute becomes the op's Location rather than another entry
 // in the attribute dict -- keeping both would duplicate it on every round trip,

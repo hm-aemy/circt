@@ -56,5 +56,5 @@ rtlil.module @"\\top" {
   %s = slice %c offset 0 : (!rtlil<val[4]>) -> !rtlil<val[4]>
   // expected-note@+1 {{cycle reached again from here}}
   %c = concat %s : (!rtlil<val[4]>) -> !rtlil<val[4]>
-  "rtlil.wconnection"(%w, %s) : (!rtlil<val[4]>, !rtlil<val[4]>) -> ()
+  wconnection %w, %s : !rtlil<val[4]>
 }

@@ -14,4 +14,4 @@
 
 // A one-bit pick is still a slice, and the wire it comes from stays bare.
 // CHECK-DAG: %[[B:.+]] = slice %[[W]] offset 2 : (!rtlil<val[8]>) -> !rtlil<val[1]>
-// CHECK-DAG: "rtlil.wconnection"(%{{.+}}, %[[B]])
+// CHECK-DAG: wconnection %{{.+}}, %[[B]] :

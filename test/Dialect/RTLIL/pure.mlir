@@ -14,8 +14,8 @@ rtlil.module @"\\top" {
   %b = rtlil.const <"1010"> : !rtlil<val[4]>
   %unused = rtlil.const <"1111"> : !rtlil<val[4]>
 
-  // CHECK: "rtlil.wconnection"(%{{.+}}, %[[C]])
-  // CHECK: "rtlil.wconnection"(%{{.+}}, %[[C]])
-  "rtlil.wconnection"(%w, %a) : (!rtlil<val[4]>, !rtlil<val[4]>) -> ()
-  "rtlil.wconnection"(%w, %b) : (!rtlil<val[4]>, !rtlil<val[4]>) -> ()
+  // CHECK: wconnection %{{.+}}, %[[C]] :
+  // CHECK: wconnection %{{.+}}, %[[C]] :
+  rtlil.wconnection %w, %a : !rtlil<val[4]>
+  rtlil.wconnection %w, %b : !rtlil<val[4]>
 }

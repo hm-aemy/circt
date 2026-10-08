@@ -9,7 +9,7 @@ hw.module @concatmod(in %msb : i3, in %mid : i2, in %lsb : i1, out res : i6) {
   // CHECK-DAG: [[RES:%[0-9]+]] = wire "\\res" output
   // No cell and no intermediate wire.
   // CHECK-DAG: [[CAT:%[0-9]+]] = concat [[LSB]], [[MID]], [[MSB]] : (!rtlil<val[1]>, !rtlil<val[2]>, !rtlil<val[3]>) -> !rtlil<val[6]>
-  // CHECK-DAG: "rtlil.wconnection"([[RES]], [[CAT]])
+  // CHECK-DAG: wconnection [[RES]], [[CAT]] :
   %0 = comb.concat %msb, %mid, %lsb : i3, i2, i1
   hw.output %0 : i6
 }
@@ -20,7 +20,7 @@ hw.module @extractmod(in %in : i8, out res : i3) {
   // CHECK-DAG: [[IN:%[0-9]+]] = wire "\\in" input
   // CHECK-DAG: [[RES:%[0-9]+]] = wire "\\res" output
   // CHECK-DAG: [[SLICE:%[0-9]+]] = slice [[IN]] offset 3 : (!rtlil<val[8]>) -> !rtlil<val[3]>
-  // CHECK-DAG: "rtlil.wconnection"([[RES]], [[SLICE]])
+  // CHECK-DAG: wconnection [[RES]], [[SLICE]] :
   %0 = comb.extract %in from 3 : (i8) -> i3
   hw.output %0 : i3
 }

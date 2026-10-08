@@ -9,7 +9,7 @@
 rtlil.module @"\\top" {
   %a = rtlil.wire "\\a" input port 1 : !rtlil<val[8]>
   %y = rtlil.wire "\\y" output port 2 : !rtlil<val[8]>
-  "rtlil.wconnection"(%y, %a) : (!rtlil<val[8]>, !rtlil<val[8]>) -> ()
+  rtlil.wconnection %y, %a : !rtlil<val[8]>
 }
 
 om.class @top_Class(%basepath: !om.basepath) {

@@ -21,7 +21,7 @@ hw.module @test(in %arg0: i32, in %arg1: i32, in %arg2: i32, in %arg3: i32, out 
   // CHECK-DAG: and "${{[0-9]+}}"(%[[OP3]], %[[OP4]], %[[RES2:.+]]) {{.*}} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   %0 = comb.and %arg0, %arg1 : i32
   %1 = comb.and %arg2, %arg3 : i32
-  // CHECK-DAG: "rtlil.wconnection"(%[[OUT0]], %[[RES1]])
-  // CHECK-DAG: "rtlil.wconnection"(%[[OUT1]], %[[RES2]])
+  // CHECK-DAG: wconnection %[[OUT0]], %[[RES1]] :
+  // CHECK-DAG: wconnection %[[OUT1]], %[[RES2]] :
   hw.output %0, %1 : i32, i32
 }

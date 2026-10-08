@@ -155,14 +155,14 @@ def WireOp : RTLILOp<"wire"> {
   }];
 }
 
-def WConnectionOp : RTLILOp<"wconnection"> {
+def WConnectionOp : RTLILOp<"wconnection", [AllTypesMatch<["lhs", "rhs"]>]> {
   let summary = "One entry of a module's connection list";
   let description = [{
     Represents one `RTLIL::SigSig` in `RTLIL::Module::connections()`.
     `$lhs` is driven by `$rhs` and they must have the same width.
   }];
   let arguments = (ins MValueType:$lhs, MValueType:$rhs);
-  let hasVerifier = 1;
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` qualified(type($lhs))";
 }
 
 //===----------------------------------------------------------------------===//

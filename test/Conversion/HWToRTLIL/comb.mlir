@@ -11,7 +11,7 @@ hw.module @narymod(in %a: i8, in %b: i8, in %c: i8, out o: i8) {
   // CHECK-DAG: [[O:%[0-9]+]] = wire "\\o"
   // CHECK-DAG: xor "{{[^"]*}}"([[A]], [[B]], [[T:%[0-9]+]]) {{.*}}width = 8
   // CHECK-DAG: xor "{{[^"]*}}"([[T]], [[C]], [[RES:%[0-9]+]]) {{.*}}width = 8
-  // CHECK-DAG: "rtlil.wconnection"([[O]], [[RES]])
+  // CHECK-DAG: wconnection [[O]], [[RES]] :
   %0 = comb.xor %a, %b, %c : i8
   hw.output %0 : i8
 }
@@ -76,7 +76,7 @@ hw.module @singlemod(in %a: i4, out o: i4) {
   // CHECK-DAG: [[A:%[0-9]+]] = wire "\\a"
   // CHECK-DAG: [[O:%[0-9]+]] = wire "\\o"
   // CHECK-NOT: concat
-  // CHECK-DAG: "rtlil.wconnection"([[O]], [[A]])
+  // CHECK-DAG: wconnection [[O]], [[A]] :
   %0 = comb.replicate %a : (i4) -> i4
   hw.output %0 : i4
 }

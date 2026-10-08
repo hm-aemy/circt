@@ -307,7 +307,7 @@ rtlil.module @"\\top" {
 rtlil.module @"\\top" {
   %a = rtlil.wire "\\a" : !rtlil<val[32]>
   %b = rtlil.wire "\\b" : !rtlil<val[8]>
-  // expected-error@+1 {{'rtlil.wconnection' op left-hand side is 32 bits but the right-hand side is 8}}
+  // expected-error@+1 {{'rtlil.wconnection' op failed to verify that all of {lhs, rhs} have same type}}
   "rtlil.wconnection"(%a, %b) : (!rtlil<val[32]>, !rtlil<val[8]>) -> ()
 }
 

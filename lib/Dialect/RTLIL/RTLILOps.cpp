@@ -190,19 +190,6 @@ LogicalResult ConcatOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// WConnectionOp
-//===----------------------------------------------------------------------===//
-
-LogicalResult WConnectionOp::verify() {
-  unsigned lhsWidth = getBitWidth(getLhs());
-  unsigned rhsWidth = getBitWidth(getRhs());
-  if (lhsWidth != rhsWidth)
-    return emitOpError("left-hand side is ")
-           << lhsWidth << " bits but the right-hand side is " << rhsWidth;
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // InstanceOp
 //===----------------------------------------------------------------------===//
 

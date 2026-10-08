@@ -16,7 +16,7 @@ hw.module @ormod(in %x: i32, in %y: i32, out res1: i32, out res2: i32) {
   // CHECK-DAG: or "{{[^"]*}}"([[Y]], [[CONST700]], [[OR2:%[0-9]+]])
   %res1 = comb.or %x, %1 : i32
   %res2 = comb.or %y, %2 : i32
-  // CHECK-DAG: "rtlil.wconnection"([[RES1]], [[OR1]])
-  // CHECK-DAG: "rtlil.wconnection"([[RES2]], [[OR2]])
+  // CHECK-DAG: wconnection [[RES1]], [[OR1]] :
+  // CHECK-DAG: wconnection [[RES2]], [[OR2]] :
   hw.output %res1, %res2 : i32, i32
 }
