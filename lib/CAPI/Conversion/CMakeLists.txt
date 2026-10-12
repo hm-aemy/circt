@@ -37,6 +37,7 @@ add_circt_public_c_api_library(CIRCTCAPIConversion
   CIRCTLTLToCore
   CIRCTMooreToCore
   CIRCTPipelineToHW
+  CIRCTRTLILToCore
   CIRCTSCFToCalyx
   CIRCTSeqToSV
   CIRCTSimToSV
