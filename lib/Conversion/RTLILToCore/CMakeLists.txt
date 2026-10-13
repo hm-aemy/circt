@@ -11,10 +11,12 @@ add_circt_conversion_library(CIRCTRTLILToCore
   CIRCTComb
   CIRCTDebug
   CIRCTHW
+  CIRCTLLHD
   CIRCTRTLIL
   CIRCTSeq
   MLIRPass
   MLIRSupport
+  MLIRTransformUtils
   CIRCTTransforms
   CIRCTVerif
   MLIRTransforms

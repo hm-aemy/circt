@@ -669,10 +669,14 @@ def ConvertRTLILToCore : Pass<"convert-rtlil-to-core", "mlir::ModuleOp"> {
   let description = [{
     This pass lowers a RTLIL netlist representation to HW modules with the
     equivalent Comb and Seq ops.
+
+    Wires are converted to LLHD signals. Use `llhd-combine-drives` and
+    `llhd-sig2reg` to resolve the signals with values.
   }];
   let dependentDialects = [
     "circt::comb::CombDialect",
     "circt::hw::HWDialect",
+    "circt::llhd::LLHDDialect",
     "circt::seq::SeqDialect",
   ];
 }

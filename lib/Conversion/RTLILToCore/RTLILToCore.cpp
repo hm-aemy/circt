@@ -5,13 +5,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Convert RTLIL to Core dialects. Uses LLHD to represent the wires. This
+// requires LLHD passes to follow up for a Core only representation.
+//
+//===----------------------------------------------------------------------===//
 
 #include "circt/Conversion/RTLILToCore.h"
 #include "circt/Dialect/Comb/CombOps.h"
 #include "circt/Dialect/Debug/DebugOps.h"
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/HW/HWTypes.h"
+#include "circt/Dialect/LLHD/LLHDOps.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
+#include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Dialect/Verif/VerifOps.h"
 #include "circt/Support/ConversionPatternSet.h"
 #include "circt/Transforms/Passes.h"
@@ -21,6 +28,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 
 namespace circt {
@@ -33,6 +41,214 @@ using namespace circt;
 using namespace rtlil;
 
 //===----------------------------------------------------------------------===//
+// Utilities
+//===----------------------------------------------------------------------===//
+
+/// Reverse `makeGlobal` of HWToRTLIL
+static StringAttr makeLocal(MLIRContext *context, StringRef name) {
+  name.consume_front("\\");
+  return StringAttr::get(context, name);
+}
+
+/// Get signal name converted without global prefix and empty for anonymous.
+static StringAttr getSignalName(MLIRContext *context, StringRef name) {
+  if (!name.starts_with("\\"))
+    return {};
+  return makeLocal(context, name);
+}
+
+static unsigned getWidth(Value value) {
+  return cast<MValueType>(value.getType()).getWidth();
+}
+
+static IntegerType getIntType(Value value) {
+  return IntegerType::get(value.getContext(), getWidth(value));
+}
+
+/// Drives `value` onto `signal` without delay, like a continuous assignment.
+/// `llhd-sig2reg` only promotes drives with this delay.
+static void drive(OpBuilder &builder, Location loc, Value signal, Value value) {
+  auto time = llhd::ConstantTimeOp::create(builder, loc, 0, "ns", 0, 1);
+  llhd::DriveOp::create(builder, loc, signal, value, time, Value{});
+}
+
+/// Returns whether `use` connects its value to a port the user drives.
+// TODO: Move this into `CellOpInterface`.
+static bool isDriven(OpOperand &use) {
+  return TypeSwitch<Operation *, bool>(use.getOwner())
+      .Case<WConnectionOp>([&](auto) { return use.getOperandNumber() == 0; })
+      .Case<rtlil::AndOp, rtlil::OrOp, rtlil::XorOp>([&](auto op) {
+        return use.getOperandNumber() == op.getNumOperands() - 1;
+      })
+      .Default([](auto) { return false; });
+}
+
+//===----------------------------------------------------------------------===//
+// Structure
+//===----------------------------------------------------------------------===//
+
+/// Create the module by collecting and processing the ports
+static LogicalResult convert(rtlil::ModuleOp op, rtlil::ModuleOp::Adaptor,
+                             ConversionPatternRewriter &rewriter,
+                             const TypeConverter &typeConverter) {
+  auto *context = op.getContext();
+
+  SmallVector<WireOp> portWires;
+  op.getPortWires(portWires);
+  SmallVector<hw::PortInfo> ports;
+  // Gathering input and output ports
+  for (auto wire : portWires) {
+    if (wire.isPortInput() && wire.isPortOutput())
+      return wire.emitOpError("inout ports are not supported");
+    hw::PortInfo port;
+    port.name = makeLocal(context, wire.getName());
+    port.type = getIntType(wire.getResult());
+    port.dir = wire.isPortInput() ? hw::ModulePort::Direction::Input
+                                  : hw::ModulePort::Direction::Output;
+    port.loc = wire.getLoc();
+    ports.push_back(port);
+  }
+
+  auto hwModule = hw::HWModuleOp::create(
+      rewriter, op.getLoc(), makeLocal(context, op.getSymName()), ports);
+  auto *body = hwModule.getBodyBlock();
+  auto *terminator = body->getTerminator();
+  rewriter.inlineBlockBefore(op.getBodyBlock(), terminator);
+
+  // Create ops accessing the ports
+  unsigned numInputs = 0;
+  SmallVector<Value> outputs;
+  for (auto wire : portWires) {
+    rewriter.setInsertionPoint(wire);
+    auto signal = llhd::SignalOp::create(
+        rewriter, wire.getLoc(), typeConverter.convertType(wire.getType()),
+        getSignalName(context, wire.getName()), Value{});
+    if (wire.isPortInput()) {
+      drive(rewriter, wire.getLoc(), signal, body->getArgument(numInputs++));
+    } else {
+      rewriter.setInsertionPoint(terminator);
+      outputs.push_back(llhd::ProbeOp::create(rewriter, wire.getLoc(), signal));
+    }
+    rewriter.replaceOp(wire, signal);
+  }
+  rewriter.modifyOpInPlace(terminator,
+                           [&] { terminator->setOperands(outputs); });
+
+  rewriter.eraseOp(op);
+  return success();
+}
+
+/// Convert internal wires to LLHD signals.
+static LogicalResult convert(WireOp op, WireOp::Adaptor,
+                             ConversionPatternRewriter &rewriter,
+                             const TypeConverter &typeConverter) {
+  if (op.getDirection())
+    return failure();
+  rewriter.replaceOpWithNewOp<llhd::SignalOp>(
+      op, typeConverter.convertType(op.getType()),
+      getSignalName(op.getContext(), op.getName()), Value{});
+  return success();
+}
+
+static LogicalResult convert(WConnectionOp op, WConnectionOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  drive(rewriter, op.getLoc(), adaptor.getLhs(),
+        llhd::ProbeOp::create(rewriter, op.getLoc(), adaptor.getRhs()));
+  rewriter.eraseOp(op);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Signal spec
+//===----------------------------------------------------------------------===//
+
+/// Constant
+static LogicalResult convert(ConstOp op, ConstOp::Adaptor,
+                             ConversionPatternRewriter &rewriter,
+                             const TypeConverter &typeConverter) {
+  // `$bits` is least significant first, like `APInt`.
+  auto bits = op.getValue().getBits();
+  APInt intVal(bits.size(), 0);
+  for (auto [idx, bit] : llvm::enumerate(bits)) {
+    if (bit == StateEnum::S1)
+      intVal.setBit(idx);
+    else if (bit != StateEnum::S0)
+      return op.emitOpError("with bits other than 0 and 1 is not supported");
+  }
+  auto value = hw::ConstantOp::create(rewriter, op.getLoc(), intVal);
+  rewriter.replaceOpWithNewOp<llhd::SignalOp>(
+      op, typeConverter.convertType(op.getType()), StringAttr{}, value);
+  return success();
+}
+
+static LogicalResult convert(SliceOp op, SliceOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter,
+                             const TypeConverter &typeConverter) {
+  auto lowBit = hw::ConstantOp::create(
+      rewriter, op.getLoc(),
+      rewriter.getIntegerType(llvm::Log2_64_Ceil(getWidth(op.getInput()))),
+      op.getOffset());
+  rewriter.replaceOpWithNewOp<llhd::SigExtractOp>(
+      op, typeConverter.convertType(op.getType()), adaptor.getInput(), lowBit);
+  return success();
+}
+
+/// LLHD has no concatenation of signals. A concat becomes a signal of its own,
+/// connected to its inputs in the direction it is used in.
+static LogicalResult convert(ConcatOp op, ConcatOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter,
+                             const TypeConverter &typeConverter) {
+  auto uses = op.getResult().getUses();
+  bool driven = llvm::any_of(uses, isDriven);
+  if (driven && !llvm::all_of(uses, isDriven))
+    return op.emitOpError("is both driven and read");
+
+  auto loc = op.getLoc();
+  Value signal = llhd::SignalOp::create(rewriter, loc,
+                                        typeConverter.convertType(op.getType()),
+                                        StringAttr{}, Value{});
+  if (driven) {
+    Value value = llhd::ProbeOp::create(rewriter, loc, signal);
+    unsigned offset = 0;
+    for (auto [input, inputSignal] :
+         llvm::zip(op.getInputs(), adaptor.getInputs())) {
+      unsigned width = getWidth(input);
+      drive(rewriter, loc, inputSignal,
+            comb::ExtractOp::create(rewriter, loc, value, offset, width));
+      offset += width;
+    }
+  } else {
+    // `rtlil.concat` is least significant first, `comb.concat` most.
+    SmallVector<Value> inputs;
+    for (auto input : llvm::reverse(adaptor.getInputs()))
+      inputs.push_back(llhd::ProbeOp::create(rewriter, loc, input));
+    drive(rewriter, loc, signal, comb::ConcatOp::create(rewriter, loc, inputs));
+  }
+  rewriter.replaceOp(op, signal);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Cells
+//===----------------------------------------------------------------------===//
+
+/// The TypedCellOp with a fixed number of connections for Comb.
+template <typename CellOp, typename CombOp>
+static LogicalResult convertFixedOperands(CellOp op,
+                                          typename CellOp::Adaptor adaptor,
+                                          ConversionPatternRewriter &rewriter) {
+  auto connections = adaptor.getConnections();
+  SmallVector<Value> inputs;
+  for (auto connection : connections.drop_back())
+    inputs.push_back(llhd::ProbeOp::create(rewriter, op.getLoc(), connection));
+  auto result = CombOp::create(rewriter, op.getLoc(),
+                               getIntType(op.getConnections().back()), inputs);
+  drive(rewriter, op.getLoc(), connections.back(), result);
+  rewriter.eraseOp(op);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // RTLIL to Core Conversion Pass
 //===----------------------------------------------------------------------===//
 
@@ -43,8 +259,32 @@ struct RTLILToCorePass
 };
 } // namespace
 
-/// This is the main entry point for the RTLIL to Core conversion pass.
 void RTLILToCorePass::runOnOperation() {
-  getOperation().emitError("RTLIL to Core conversion not implemented yet");
-  signalPassFailure();
+  auto *context = &getContext();
+
+  TypeConverter typeConverter;
+  typeConverter.addConversion([](MValueType type) {
+    return llhd::RefType::get(
+        IntegerType::get(type.getContext(), type.getWidth()));
+  });
+
+  ConversionTarget target(*context);
+  target.addIllegalDialect<RTLILDialect>();
+  target.addLegalDialect<comb::CombDialect, hw::HWDialect, llhd::LLHDDialect,
+                         seq::SeqDialect>();
+
+  ConversionPatternSet patterns(context, typeConverter);
+  patterns.add<rtlil::ModuleOp>(convert, typeConverter);
+  patterns.add<WireOp>(convert, typeConverter);
+  patterns.add<WConnectionOp>(convert);
+  patterns.add<ConstOp>(convert, typeConverter);
+  patterns.add<SliceOp>(convert, typeConverter);
+  patterns.add<ConcatOp>(convert, typeConverter);
+  patterns.add<rtlil::AndOp>(convertFixedOperands<rtlil::AndOp, comb::AndOp>);
+  patterns.add<rtlil::OrOp>(convertFixedOperands<rtlil::OrOp, comb::OrOp>);
+  patterns.add<rtlil::XorOp>(convertFixedOperands<rtlil::XorOp, comb::XorOp>);
+
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
+    signalPassFailure();
 }
