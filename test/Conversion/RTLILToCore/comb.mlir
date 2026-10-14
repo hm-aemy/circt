@@ -179,3 +179,18 @@ rtlil.module @"\\divmod" {
   // CHECK-DAG: llhd.drv %mods, [[MODS]] after {{%.+}} : i4
   mod "$4"(%a, %b, %mods) {opsSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
 }
+
+// `$sshr` is an arithmetic shift only for a signed A.
+// CHECK-LABEL: hw.module @sshr(in %a : i4, in %b : i4, out s : i4, out u : i4)
+rtlil.module @"\\sshr" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %s = wire "\\s" output port 3 : !rtlil<val[4]>
+  %u = wire "\\u" output port 4 : !rtlil<val[4]>
+  // CHECK-DAG: [[SHRS:%.+]] = comb.shrs {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %s, [[SHRS]] after {{%.+}} : i4
+  sshr "$1"(%a, %b, %s) {aSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[SHRU:%.+]] = comb.shru {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %u, [[SHRU]] after {{%.+}} : i4
+  sshr "$2"(%a, %b, %u) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+}

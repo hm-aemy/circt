@@ -21,8 +21,8 @@ rtlil.module @"\\xconst" {
 rtlil.module @"\\unsupported" {
   %a = wire "\\a" input port 1 : !rtlil<val[1]>
   %o = wire "\\o" output port 2 : !rtlil<val[1]>
-  // expected-error@below {{failed to legalize operation 'rtlil.sshr'}}
-  sshr "$1"(%a, %a, %o) {aSigned = 0 : i32, width = 1 : i32} : !rtlil<val[1]>, !rtlil<val[1]>, !rtlil<val[1]>
+  // expected-error@below {{failed to legalize operation 'rtlil.cell'}}
+  "rtlil.cell"(%a, %o) <{name = "$1", type = "$not", ports = ["\\A", "\\Y"], parameters = []}> : (!rtlil<val[1]>, !rtlil<val[1]>) -> ()
 }
 
 // -----

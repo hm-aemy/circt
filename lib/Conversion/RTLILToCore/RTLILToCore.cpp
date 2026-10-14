@@ -257,6 +257,14 @@ static LogicalResult convertSigned(CellOp op, typename CellOp::Adaptor adaptor,
   return convertFixedOperands<CellOp, UnsignedOp>(op, adaptor, rewriter);
 }
 
+/// `$sshr` only shifts in the sign bit if A is signed.
+static LogicalResult convert(SShrOp op, SShrOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  if (op.getASigned())
+    return convertFixedOperands<SShrOp, comb::ShrSOp>(op, adaptor, rewriter);
+  return convertFixedOperands<SShrOp, comb::ShrUOp>(op, adaptor, rewriter);
+}
+
 /// Comparison cells become `comb.icmp`, with the predicate picked by the
 /// signedness of the operands.
 template <typename CellOp, comb::ICmpPredicate unsignedPred,
@@ -350,6 +358,7 @@ void RTLILToCorePass::runOnOperation() {
       convertSigned<rtlil::ModOp, comb::ModUOp, comb::ModSOp>);
   patterns.add<rtlil::ShlOp>(convertFixedOperands<rtlil::ShlOp, comb::ShlOp>);
   patterns.add<rtlil::ShrOp>(convertFixedOperands<rtlil::ShrOp, comb::ShrUOp>);
+  patterns.add<SShrOp>(convert);
   patterns.add<rtlil::ReduceXorOp>(
       convertFixedOperands<rtlil::ReduceXorOp, comb::ParityOp>);
   using comb::ICmpPredicate;
