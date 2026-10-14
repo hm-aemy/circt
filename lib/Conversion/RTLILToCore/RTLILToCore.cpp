@@ -28,7 +28,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/DerivedTypes.h"
 
 namespace circt {
@@ -73,15 +72,13 @@ static void drive(OpBuilder &builder, Location loc, Value signal, Value value) {
 }
 
 /// Returns whether `use` connects its value to a port the user drives.
-// TODO: Move this into `CellOpInterface`.
 static bool isDriven(OpOperand &use) {
-  return TypeSwitch<Operation *, bool>(use.getOwner())
-      .Case<WConnectionOp>([&](auto) { return use.getOperandNumber() == 0; })
-      .Case<rtlil::AndOp, rtlil::OrOp, rtlil::XorOp, rtlil::MuxOp, DFFOp>(
-          [&](auto op) {
-            return use.getOperandNumber() == op.getNumOperands() - 1;
-          })
-      .Default([](auto) { return false; });
+  if (isa<WConnectionOp>(use.getOwner()))
+    return use.getOperandNumber() == 0;
+  if (auto cell = dyn_cast<CellOpInterface>(use.getOwner()))
+    return cell.getCellPortDirection(use.getOperandNumber()) ==
+           PortDirection::Output;
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -239,12 +236,14 @@ static LogicalResult convertFixedOperands(CellOp op,
                                           typename CellOp::Adaptor adaptor,
                                           ConversionPatternRewriter &rewriter) {
   auto connections = adaptor.getConnections();
+  auto output = connections.drop_front(CellOp::getNumCellInputs());
+  assert(output.size() == 1 && "Comb ops have a single result");
   SmallVector<Value> inputs;
-  for (auto connection : connections.drop_back())
+  for (auto connection : connections.take_front(CellOp::getNumCellInputs()))
     inputs.push_back(llhd::ProbeOp::create(rewriter, op.getLoc(), connection));
   auto result = CombOp::create(rewriter, op.getLoc(),
                                getIntType(op.getConnections().back()), inputs);
-  drive(rewriter, op.getLoc(), connections.back(), result);
+  drive(rewriter, op.getLoc(), output.front(), result);
   rewriter.eraseOp(op);
   return success();
 }
