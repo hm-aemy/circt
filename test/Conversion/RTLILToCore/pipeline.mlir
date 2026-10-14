@@ -82,3 +82,22 @@ rtlil.module @"\\unary" {
   pos "$3"(%a, %pos) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
   // CHECK: hw.output [[NOT]], [[NEG]], %a : i4, i4, i4
 }
+
+// CHECK-LABEL: hw.module @logic(in %a : i4, in %b : i4, out and : i1, out or : i1, out not : i1)
+rtlil.module @"\\logic" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %and = wire "\\and" output port 3 : !rtlil<val[1]>
+  %or = wire "\\or" output port 4 : !rtlil<val[1]>
+  %not = wire "\\not" output port 5 : !rtlil<val[1]>
+  // CHECK-DAG: [[ZERO:%.+]] = hw.constant 0 : i4
+  // CHECK-DAG: [[A:%.+]] = comb.icmp ne %a, [[ZERO]] : i4
+  // CHECK-DAG: [[B:%.+]] = comb.icmp ne %b, [[ZERO]] : i4
+  // CHECK-DAG: [[AND:%.+]] = comb.and [[A]], [[B]] : i1
+  // CHECK-DAG: [[OR:%.+]] = comb.or [[A]], [[B]] : i1
+  // CHECK-DAG: [[NOT:%.+]] = comb.icmp eq %a, [[ZERO]] : i4
+  logic_and "$1"(%a, %b, %and) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[1]>
+  logic_or "$2"(%a, %b, %or) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[1]>
+  logic_not "$3"(%a, %not) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+  // CHECK: hw.output [[AND]], [[OR]], [[NOT]] : i1, i1, i1
+}

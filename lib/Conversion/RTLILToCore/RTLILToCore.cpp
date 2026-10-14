@@ -285,6 +285,65 @@ static LogicalResult convert(PosOp op, PosOp::Adaptor adaptor,
   return convertUnary(op, adaptor, rewriter, [](Value input) { return input; });
 }
 
+/// Compares `value` against the constant `bits`, sign-extended to its width.
+static Value compareTo(OpBuilder &builder, Location loc,
+                       comb::ICmpPredicate pred, Value value, int64_t bits) {
+  auto constant = hw::ConstantOp::create(builder, loc, value.getType(), bits);
+  return comb::ICmpOp::create(builder, loc, pred, value, constant);
+}
+
+/// Whether any bit of `value` is set, the truth value of the logic cells.
+static Value isTrue(OpBuilder &builder, Location loc, Value value) {
+  return compareTo(builder, loc, comb::ICmpPredicate::ne, value, 0);
+}
+
+static LogicalResult convert(ReduceAndOp op, ReduceAndOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [&](Value input) {
+    return compareTo(rewriter, op.getLoc(), comb::ICmpPredicate::eq, input, -1);
+  });
+}
+
+/// `$reduce_or` and `$reduce_bool` are the same function.
+template <typename CellOp>
+static LogicalResult convertReduceOr(CellOp op,
+                                     typename CellOp::Adaptor adaptor,
+                                     ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [&](Value input) {
+    return isTrue(rewriter, op.getLoc(), input);
+  });
+}
+
+static LogicalResult convert(ReduceXnorOp op, ReduceXnorOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [&](Value input) {
+    auto parity = comb::ParityOp::create(rewriter, op.getLoc(), input);
+    return comb::createOrFoldNot(rewriter, op.getLoc(), parity);
+  });
+}
+
+static LogicalResult convert(LogicNotOp op, LogicNotOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [&](Value input) {
+    return compareTo(rewriter, op.getLoc(), comb::ICmpPredicate::eq, input, 0);
+  });
+}
+
+/// `$logic_and` and `$logic_or` combine the truth values of A and B.
+template <typename CellOp, typename CombOp>
+static LogicalResult convertLogic(CellOp op, typename CellOp::Adaptor adaptor,
+                                  ConversionPatternRewriter &rewriter) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  Value lhs = isTrue(rewriter, loc,
+                     llhd::ProbeOp::create(rewriter, loc, connections[0]));
+  Value rhs = isTrue(rewriter, loc,
+                     llhd::ProbeOp::create(rewriter, loc, connections[1]));
+  drive(rewriter, loc, connections[2], CombOp::create(rewriter, loc, lhs, rhs));
+  rewriter.eraseOp(op);
+  return success();
+}
+
 /// Cells whose Comb op depends on the signedness of the operands.
 template <typename CellOp, typename UnsignedOp, typename SignedOp>
 static LogicalResult convertSigned(CellOp op, typename CellOp::Adaptor adaptor,
@@ -399,6 +458,13 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<NotOp>(convert);
   patterns.add<NegOp>(convert);
   patterns.add<PosOp>(convert);
+  patterns.add<ReduceAndOp>(convert);
+  patterns.add<ReduceOrOp>(convertReduceOr<ReduceOrOp>);
+  patterns.add<ReduceBoolOp>(convertReduceOr<ReduceBoolOp>);
+  patterns.add<ReduceXnorOp>(convert);
+  patterns.add<LogicNotOp>(convert);
+  patterns.add<LogicAndOp>(convertLogic<LogicAndOp, comb::AndOp>);
+  patterns.add<LogicOrOp>(convertLogic<LogicOrOp, comb::OrOp>);
   patterns.add<rtlil::ReduceXorOp>(
       convertFixedOperands<rtlil::ReduceXorOp, comb::ParityOp>);
   using comb::ICmpPredicate;

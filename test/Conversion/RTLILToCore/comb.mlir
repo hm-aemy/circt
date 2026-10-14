@@ -221,3 +221,48 @@ rtlil.module @"\\pos" {
   // CHECK-DAG: llhd.drv %pos, [[POS]] after {{%.+}} : i4
   pos "$1"(%a, %pos) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
 }
+
+// Reductions become comparisons against all ones or zero, `$reduce_xnor` an
+// inverted parity.
+// CHECK-LABEL: hw.module @reduce(in %a : i4, out and : i1, out or : i1, out bool : i1, out xnor : i1)
+rtlil.module @"\\reduce" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %and = wire "\\and" output port 2 : !rtlil<val[1]>
+  %or = wire "\\or" output port 3 : !rtlil<val[1]>
+  %bool = wire "\\bool" output port 4 : !rtlil<val[1]>
+  %xnor = wire "\\xnor" output port 5 : !rtlil<val[1]>
+  // CHECK-DAG: [[ONES:%.+]] = hw.constant -1 : i4
+  // CHECK-DAG: [[AND:%.+]] = comb.icmp eq {{%.+}}, [[ONES]] : i4
+  // CHECK-DAG: llhd.drv %and, [[AND]] after {{%.+}} : i1
+  reduce_and "$1"(%a, %and) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+  // CHECK-DAG: [[OR:%.+]] = comb.icmp ne {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %or, [[OR]] after {{%.+}} : i1
+  reduce_or "$2"(%a, %or) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+  // CHECK-DAG: [[BOOL:%.+]] = comb.icmp ne {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %bool, [[BOOL]] after {{%.+}} : i1
+  reduce_bool "$3"(%a, %bool) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+  // CHECK-DAG: [[PAR:%.+]] = comb.parity {{%.+}} : i4
+  // CHECK-DAG: [[TRUE:%.+]] = hw.constant true
+  // CHECK-DAG: [[XNOR:%.+]] = comb.xor [[PAR]], [[TRUE]] : i1
+  // CHECK-DAG: llhd.drv %xnor, [[XNOR]] after {{%.+}} : i1
+  reduce_xnor "$4"(%a, %xnor) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+}
+
+// Logic cells work on the truth value of each operand: whether any bit is set.
+// CHECK-LABEL: hw.module @logic(in %a : i4, in %b : i4, out not : i1, out and : i1, out or : i1)
+rtlil.module @"\\logic" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %not = wire "\\not" output port 3 : !rtlil<val[1]>
+  %and = wire "\\and" output port 4 : !rtlil<val[1]>
+  %or = wire "\\or" output port 5 : !rtlil<val[1]>
+  // CHECK-DAG: [[NOT:%.+]] = comb.icmp eq {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %not, [[NOT]] after {{%.+}} : i1
+  logic_not "$1"(%a, %not) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+  // CHECK-DAG: [[AND:%.+]] = comb.and {{%.+}}, {{%.+}} : i1
+  // CHECK-DAG: llhd.drv %and, [[AND]] after {{%.+}} : i1
+  logic_and "$2"(%a, %b, %and) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[1]>
+  // CHECK-DAG: [[OR:%.+]] = comb.or {{%.+}}, {{%.+}} : i1
+  // CHECK-DAG: llhd.drv %or, [[OR]] after {{%.+}} : i1
+  logic_or "$3"(%a, %b, %or) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[1]>
+}
