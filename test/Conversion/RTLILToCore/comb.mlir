@@ -266,3 +266,16 @@ rtlil.module @"\\logic" {
   // CHECK-DAG: llhd.drv %or, [[OR]] after {{%.+}} : i1
   logic_or "$3"(%a, %b, %or) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[1]>
 }
+
+// `$xnor` is an inverted XOR.
+// CHECK-LABEL: hw.module @xnor(in %a : i4, in %b : i4, out y : i4)
+rtlil.module @"\\xnor" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %y = wire "\\y" output port 3 : !rtlil<val[4]>
+  // CHECK-DAG: [[XOR:%.+]] = comb.xor {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: [[ONES:%.+]] = hw.constant -1 : i4
+  // CHECK-DAG: [[XNOR:%.+]] = comb.xor [[XOR]], [[ONES]] : i4
+  // CHECK-DAG: llhd.drv %y, [[XNOR]] after {{%.+}} : i4
+  xnor "$1"(%a, %b, %y) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+}

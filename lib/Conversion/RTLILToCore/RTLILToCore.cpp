@@ -385,6 +385,20 @@ static LogicalResult convertSigned(CellOp op, typename CellOp::Adaptor adaptor,
   return convertFixedOperands<CellOp, UnsignedOp>(op, adaptor, rewriter);
 }
 
+/// `$xnor` is an inverted XOR.
+static LogicalResult convert(XnorOp op, XnorOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  Value lhs = llhd::ProbeOp::create(rewriter, loc, connections[0]);
+  Value rhs = llhd::ProbeOp::create(rewriter, loc, connections[1]);
+  Value result = comb::createOrFoldNot(
+      rewriter, loc, comb::XorOp::create(rewriter, loc, lhs, rhs));
+  drive(rewriter, loc, connections[2], result);
+  rewriter.eraseOp(op);
+  return success();
+}
+
 /// `$sshr` only shifts in the sign bit if A is signed.
 static LogicalResult convert(SShrOp op, SShrOp::Adaptor adaptor,
                              ConversionPatternRewriter &rewriter) {
@@ -534,6 +548,7 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::AndOp>(convertFixedOperands<rtlil::AndOp, comb::AndOp>);
   patterns.add<rtlil::OrOp>(convertFixedOperands<rtlil::OrOp, comb::OrOp>);
   patterns.add<rtlil::XorOp>(convertFixedOperands<rtlil::XorOp, comb::XorOp>);
+  patterns.add<XnorOp>(convert);
   patterns.add<rtlil::AddOp>(convertFixedOperands<rtlil::AddOp, comb::AddOp>);
   patterns.add<rtlil::SubOp>(convertFixedOperands<rtlil::SubOp, comb::SubOp>);
   patterns.add<rtlil::MulOp>(convertFixedOperands<rtlil::MulOp, comb::MulOp>);
