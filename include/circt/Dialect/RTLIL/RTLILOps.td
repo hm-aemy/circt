@@ -416,6 +416,13 @@ class UnaryOp<string t, string yWidth = "$width">
   }], "getParameters()">;
 }
 
+// Bitwise inversion of A.
+def NotOp : UnaryOp<"not">;
+// Arithmetic negation of A.
+def NegOp : UnaryOp<"neg">;
+// A passed through unchanged.
+def PosOp : UnaryOp<"pos">;
+
 // Reduction cells
 
 class ReduceOp<string t> : UnaryOp<t, "1"> {

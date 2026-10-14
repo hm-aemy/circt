@@ -47,6 +47,11 @@ rtlil.module @"\\top" {
   rtlil.le "$le"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
   rtlil.lt "$lt"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
 
+  // Unary cells take A and Y only.
+  rtlil.not "$not"(%1, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.neg "$neg"(%1, %4) {aSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.pos "$pos"(%1, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>
+
   // A reduction takes A and Y only.
   rtlil.reduce_xor "$reduce_xor"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
 

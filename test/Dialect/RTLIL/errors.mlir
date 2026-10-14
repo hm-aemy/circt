@@ -142,6 +142,16 @@ rtlil.module @"\\top" {
 
 rtlil.module @"\\top" {
   %1 = rtlil.wire "$1" : !rtlil<val[32]>
+  %2 = rtlil.wire "$2" : !rtlil<val[1]>
+
+  "rtlil.not"(%1, %2) <{name = "$3", width=32 : i32, aSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[1]>) -> ()
+  // expected-error@-1 {{'rtlil.not' op port Y is 1 bits wide, but must be 32}}
+}
+
+// -----
+
+rtlil.module @"\\top" {
+  %1 = rtlil.wire "$1" : !rtlil<val[32]>
   %2 = rtlil.wire "$2" : !rtlil<val[32]>
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
