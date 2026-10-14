@@ -438,6 +438,27 @@ static LogicalResult convert(rtlil::MuxOp op, rtlil::MuxOp::Adaptor adaptor,
   return success();
 }
 
+/// `$pmux` becomes a chain of `comb.mux`, in which the lowest set bit of S
+/// wins. Y is undefined when more than one bit of S is set, so any priority is
+/// correct.
+static LogicalResult convert(PMuxOp op, PMuxOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  unsigned width = op.getWidth();
+  Value result = llhd::ProbeOp::create(rewriter, loc, connections[0]);
+  Value b = llhd::ProbeOp::create(rewriter, loc, connections[1]);
+  Value s = llhd::ProbeOp::create(rewriter, loc, connections[2]);
+  for (unsigned i = op.getSWidth(); i-- > 0;) {
+    Value select = comb::ExtractOp::create(rewriter, loc, s, i, 1);
+    Value value = comb::ExtractOp::create(rewriter, loc, b, i * width, width);
+    result = comb::MuxOp::create(rewriter, loc, select, value, result);
+  }
+  drive(rewriter, loc, connections[3], result);
+  rewriter.eraseOp(op);
+  return success();
+}
+
 /// Rising edge `$dff` is a `seq.compreg` without reset.
 static LogicalResult convert(DFFOp op, DFFOp::Adaptor adaptor,
                              ConversionPatternRewriter &rewriter) {
@@ -582,6 +603,7 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<EQXOp>(convertCmp<EQXOp, ICmpPredicate::ceq>);
   patterns.add<NEXOp>(convertCmp<NEXOp, ICmpPredicate::cne>);
   patterns.add<rtlil::MuxOp>(convert);
+  patterns.add<PMuxOp>(convert);
   patterns.add<DFFOp>(convert);
 
   if (failed(
