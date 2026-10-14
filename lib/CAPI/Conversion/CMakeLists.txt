@@ -29,6 +29,7 @@ add_circt_public_c_api_library(CIRCTCAPIConversion
   CIRCTHWArithToHW
   CIRCTHWToLLVM
   CIRCTHWToBTOR2
+  CIRCTHWToRTLIL
   CIRCTHWToSMT
   CIRCTHWToSV
   CIRCTHWToSystemC
@@ -36,6 +37,7 @@ add_circt_public_c_api_library(CIRCTCAPIConversion
   CIRCTLTLToCore
   CIRCTMooreToCore
   CIRCTPipelineToHW
+  CIRCTRTLILToCore
   CIRCTSCFToCalyx
   CIRCTSeqToSV
   CIRCTSimToSV

@@ -661,6 +661,42 @@ def ConvertHWToBTOR2 : Pass<"convert-hw-to-btor2", "mlir::ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// RTLILToCore
+//===----------------------------------------------------------------------===//
+
+def ConvertRTLILToCore : Pass<"convert-rtlil-to-core", "mlir::ModuleOp"> {
+  let summary = "Lower RTLIL ops to HW/Comb/Seq ops";
+  let description = [{
+    This pass lowers a RTLIL netlist representation to HW modules with the
+    equivalent Comb and Seq ops.
+
+    Wires are converted to LLHD signals. Use `llhd-combine-drives` and
+    `llhd-sig2reg` to resolve the signals with values.
+  }];
+  let dependentDialects = [
+    "circt::comb::CombDialect",
+    "circt::hw::HWDialect",
+    "circt::llhd::LLHDDialect",
+    "circt::seq::SeqDialect",
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// HWToRTLIL
+//===----------------------------------------------------------------------===//
+
+def ConvertHWToRTLIL : Pass<"convert-hw-to-rtlil", "mlir::ModuleOp"> {
+  let summary = "Lower HW/Comb/Seq ops to RTLIL ops";
+  let description = [{
+    This pass lowers an elaborated HW design to RTLIL, one `rtlil.module` per
+    `hw.module`.
+  }];
+  let dependentDialects = [
+    "circt::rtlil::RTLILDialect",
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // LTLToCore
 //===----------------------------------------------------------------------===//
 
