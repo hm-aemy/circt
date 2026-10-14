@@ -315,6 +315,13 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::AndOp>(convertFixedOperands<rtlil::AndOp, comb::AndOp>);
   patterns.add<rtlil::OrOp>(convertFixedOperands<rtlil::OrOp, comb::OrOp>);
   patterns.add<rtlil::XorOp>(convertFixedOperands<rtlil::XorOp, comb::XorOp>);
+  patterns.add<rtlil::AddOp>(convertFixedOperands<rtlil::AddOp, comb::AddOp>);
+  patterns.add<rtlil::SubOp>(convertFixedOperands<rtlil::SubOp, comb::SubOp>);
+  patterns.add<rtlil::MulOp>(convertFixedOperands<rtlil::MulOp, comb::MulOp>);
+  patterns.add<rtlil::ShlOp>(convertFixedOperands<rtlil::ShlOp, comb::ShlOp>);
+  patterns.add<rtlil::ShrOp>(convertFixedOperands<rtlil::ShrOp, comb::ShrUOp>);
+  patterns.add<rtlil::ReduceXorOp>(
+      convertFixedOperands<rtlil::ReduceXorOp, comb::ParityOp>);
   patterns.add<rtlil::MuxOp>(convert);
   patterns.add<DFFOp>(convert);
 

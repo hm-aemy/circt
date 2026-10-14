@@ -125,3 +125,34 @@ rtlil.module @"\\orxormod" {
   // CHECK-DAG: llhd.drv [[XOR_CAT]], [[XOR]] after {{%.+}} : i2
   xor "$2"(%a, %b, %z) {opsSigned = 0 : i32, width = 2 : i32} : !rtlil<val[2]>, !rtlil<val[2]>, !rtlil<val[2]>
 }
+
+// Cells whose signedness does not matter at equal widths map one-to-one.
+// CHECK-LABEL: hw.module @arith(in %a : i4, in %b : i4, out add : i4, out sub : i4, out mul : i4, out shl : i4, out shr : i4, out par : i1)
+rtlil.module @"\\arith" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %add = wire "\\add" output port 3 : !rtlil<val[4]>
+  %sub = wire "\\sub" output port 4 : !rtlil<val[4]>
+  %mul = wire "\\mul" output port 5 : !rtlil<val[4]>
+  %shl = wire "\\shl" output port 6 : !rtlil<val[4]>
+  %shr = wire "\\shr" output port 7 : !rtlil<val[4]>
+  %par = wire "\\par" output port 8 : !rtlil<val[1]>
+  // CHECK-DAG: [[ADD:%.+]] = comb.add {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %add, [[ADD]] after {{%.+}} : i4
+  add "$1"(%a, %b, %add) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[SUB:%.+]] = comb.sub {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %sub, [[SUB]] after {{%.+}} : i4
+  sub "$2"(%a, %b, %sub) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[MUL:%.+]] = comb.mul {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %mul, [[MUL]] after {{%.+}} : i4
+  mul "$3"(%a, %b, %mul) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[SHL:%.+]] = comb.shl {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %shl, [[SHL]] after {{%.+}} : i4
+  shl "$4"(%a, %b, %shl) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[SHR:%.+]] = comb.shru {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %shr, [[SHR]] after {{%.+}} : i4
+  shr "$5"(%a, %b, %shr) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[PAR:%.+]] = comb.parity {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %par, [[PAR]] after {{%.+}} : i1
+  reduce_xor "$6"(%a, %par) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
+}
