@@ -156,3 +156,26 @@ rtlil.module @"\\arith" {
   // CHECK-DAG: llhd.drv %par, [[PAR]] after {{%.+}} : i1
   reduce_xor "$6"(%a, %par) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[1]>
 }
+
+// `opsSigned` picks the signed or unsigned division and remainder.
+// CHECK-LABEL: hw.module @divmod(in %a : i4, in %b : i4, out divu : i4, out divs : i4, out modu : i4, out mods : i4)
+rtlil.module @"\\divmod" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %divu = wire "\\divu" output port 3 : !rtlil<val[4]>
+  %divs = wire "\\divs" output port 4 : !rtlil<val[4]>
+  %modu = wire "\\modu" output port 5 : !rtlil<val[4]>
+  %mods = wire "\\mods" output port 6 : !rtlil<val[4]>
+  // CHECK-DAG: [[DIVU:%.+]] = comb.divu {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %divu, [[DIVU]] after {{%.+}} : i4
+  div "$1"(%a, %b, %divu) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[DIVS:%.+]] = comb.divs {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %divs, [[DIVS]] after {{%.+}} : i4
+  div "$2"(%a, %b, %divs) {opsSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[MODU:%.+]] = comb.modu {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %modu, [[MODU]] after {{%.+}} : i4
+  mod "$3"(%a, %b, %modu) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[MODS:%.+]] = comb.mods {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %mods, [[MODS]] after {{%.+}} : i4
+  mod "$4"(%a, %b, %mods) {opsSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+}

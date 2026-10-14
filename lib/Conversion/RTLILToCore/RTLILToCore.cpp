@@ -248,6 +248,15 @@ static LogicalResult convertFixedOperands(CellOp op,
   return success();
 }
 
+/// Cells whose Comb op depends on the signedness of the operands.
+template <typename CellOp, typename UnsignedOp, typename SignedOp>
+static LogicalResult convertSigned(CellOp op, typename CellOp::Adaptor adaptor,
+                                   ConversionPatternRewriter &rewriter) {
+  if (op.getOpsSigned())
+    return convertFixedOperands<CellOp, SignedOp>(op, adaptor, rewriter);
+  return convertFixedOperands<CellOp, UnsignedOp>(op, adaptor, rewriter);
+}
+
 /// Comparison cells become `comb.icmp`, with the predicate picked by the
 /// signedness of the operands.
 template <typename CellOp, comb::ICmpPredicate unsignedPred,
@@ -335,6 +344,10 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::AddOp>(convertFixedOperands<rtlil::AddOp, comb::AddOp>);
   patterns.add<rtlil::SubOp>(convertFixedOperands<rtlil::SubOp, comb::SubOp>);
   patterns.add<rtlil::MulOp>(convertFixedOperands<rtlil::MulOp, comb::MulOp>);
+  patterns.add<rtlil::DivOp>(
+      convertSigned<rtlil::DivOp, comb::DivUOp, comb::DivSOp>);
+  patterns.add<rtlil::ModOp>(
+      convertSigned<rtlil::ModOp, comb::ModUOp, comb::ModSOp>);
   patterns.add<rtlil::ShlOp>(convertFixedOperands<rtlil::ShlOp, comb::ShlOp>);
   patterns.add<rtlil::ShrOp>(convertFixedOperands<rtlil::ShrOp, comb::ShrUOp>);
   patterns.add<rtlil::ReduceXorOp>(
