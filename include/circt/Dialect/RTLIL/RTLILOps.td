@@ -267,9 +267,6 @@ def InstanceOp : RTLILOp<"instance", [
 // Typed cells
 //===----------------------------------------------------------------------===//
 
-class FixedOperands<int n>
-    : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;
-
 // A port of a typed cell. `width` is either a number or `$width`, the op's
 // `width` attribute.
 class CellPort<string n, string w = "$width"> {
@@ -279,14 +276,13 @@ class CellPort<string n, string w = "$width"> {
 
 // A cell type with a dedicated op.
 // `$connections` are the `inputs` followed by the `outputs`; the verifier
-// checks the width of each port.
+// checks their number and the width of each port.
 // `extraArgs` for arguments between `$width` and `$type`, such as a signedness
 // flag.
 // `$type` and `$ports` are fixed by the op.
 class TypedCellOp<string t, list<CellPort> inputs, list<CellPort> outputs,
                   dag extraArgs = (ins)>
-    : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>,
-                  FixedOperands<!size(!listconcat(inputs, outputs))>]> {
+    : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>]> {
   defvar ports = !listconcat(inputs, outputs);
   let arguments = !con(
       (ins StrAttr:$name,
@@ -404,19 +400,26 @@ def NEXOp : CmpOp<"nex">;
 def GEOp : CmpOp<"ge">;
 def GTOp : CmpOp<"gt">;
 
-// Reduction cells
+// Unary cells
 
-class ReduceOp<string t>
-    : TypedCellOp<t, [CellPort<"A">], [CellPort<"Y", "1">],
+// A cell computing Y from A alone. `yWidth` is either a number or `$width`.
+class UnaryOp<string t, string yWidth = "$width">
+    : TypedCellOp<t, [CellPort<"A">], [CellPort<"Y", yWidth>],
                   (ins I32Attr:$aSigned)> {
-  let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
+  let summary = "The RTLIL `" # t # "` cell, computing Y from A";
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
     return ::circt::rtlil::createParamArrayAttr(getContext(), {
       {"\\A_SIGNED", 32, getASigned()},
       {"\\A_WIDTH", 32, getWidth()},
-      {"\\Y_WIDTH", 32, 1},
+      {"\\Y_WIDTH", 32, }] # !subst("$width", "getWidth()", yWidth) # [{},
     });
   }], "getParameters()">;
+}
+
+// Reduction cells
+
+class ReduceOp<string t> : UnaryOp<t, "1"> {
+  let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
 }
 
 def ReduceXorOp : ReduceOp<"reduce_xor">;

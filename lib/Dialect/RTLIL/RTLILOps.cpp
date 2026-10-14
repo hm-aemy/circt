@@ -55,10 +55,14 @@ static void printCellPorts(OpAsmPrinter &printer, Operation *,
   printer << ']';
 }
 
-/// Check that each connection of a typed cell has the width its port requires.
-/// `FixedOperands` has already checked the number of connections.
+/// Check that a typed cell has a connection for each port, with the width the
+/// port requires.
 static LogicalResult verifyPortWidths(Operation *op, ArrayRef<StringRef> ports,
                                       ArrayRef<unsigned> widths) {
+  if (op->getNumOperands() != ports.size())
+    return op->emitOpError("has ")
+           << op->getNumOperands() << " connections, but must have "
+           << ports.size();
   for (auto [port, width, connection] :
        llvm::zip_equal(ports, widths, op->getOperands())) {
     unsigned actual = cast<MValueType>(connection.getType()).getWidth();

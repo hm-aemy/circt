@@ -50,7 +50,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.and"(%1, %3) <{name = "$4", width=32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.and' op failed to verify that has 3 connections}}
+  // expected-error@-1 {{'rtlil.and' op has 3 port names but 2 connections; the two are index-parallel}}
 }
 
 // -----
@@ -61,7 +61,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.mux"(%1, %2, %3) <{name = "$4", width=32 : i32}> : (!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.mux' op failed to verify that has 4 connections}}
+  // expected-error@-1 {{'rtlil.mux' op has 4 port names but 3 connections; the two are index-parallel}}
 }
 
 // -----
@@ -111,7 +111,7 @@ rtlil.module @"\\top" {
 
 
   "rtlil.gt"(%1, %1, %2, %3) <{name = "$4", width=32 : i32, opsSigned = 0 : i32}> : (!rtlil<val[32]>,!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>) -> ()
-  // expected-error@-1 {{'rtlil.gt' op failed to verify that has 3 connections}}
+  // expected-error@-1 {{'rtlil.gt' op has 3 port names but 4 connections; the two are index-parallel}}
 }
 
 // -----
@@ -181,7 +181,7 @@ rtlil.module @"\\top" {
   %3 = rtlil.wire "$3" : !rtlil<val[32]>
 
   "rtlil.aldff"(%1, %2, %reset, %3, %3, %3) <{name="$4", width=32 : i32}> : (!rtlil<val[1]>,!rtlil<val[32]>,!rtlil<val[1]>,!rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>) -> ()
-  // expected-error@-1 {{'rtlil.aldff' op failed to verify that has 5 connections}}
+  // expected-error@-1 {{'rtlil.aldff' op has 5 port names but 6 connections; the two are index-parallel}}
 }
 
 // -----
