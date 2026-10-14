@@ -194,3 +194,30 @@ rtlil.module @"\\sshr" {
   // CHECK-DAG: llhd.drv %u, [[SHRU]] after {{%.+}} : i4
   sshr "$2"(%a, %b, %u) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
 }
+
+// `$not` is an XOR with all ones and `$neg` a subtraction from zero.
+// CHECK-LABEL: hw.module @unary(in %a : i4, out not : i4, out neg : i4)
+rtlil.module @"\\unary" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %not = wire "\\not" output port 2 : !rtlil<val[4]>
+  %neg = wire "\\neg" output port 3 : !rtlil<val[4]>
+  // CHECK-DAG: [[ONES:%.+]] = hw.constant -1 : i4
+  // CHECK-DAG: [[NOT:%.+]] = comb.xor {{%.+}}, [[ONES]] : i4
+  // CHECK-DAG: llhd.drv %not, [[NOT]] after {{%.+}} : i4
+  not "$1"(%a, %not) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[ZERO:%.+]] = hw.constant 0 : i4
+  // CHECK-DAG: [[NEG:%.+]] = comb.sub [[ZERO]], {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %neg, [[NEG]] after {{%.+}} : i4
+  neg "$2"(%a, %neg) {aSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
+}
+
+// `$pos` passes A through.
+// CHECK-LABEL: hw.module @pos(in %a : i4, out pos : i4)
+rtlil.module @"\\pos" {
+  // CHECK-DAG: [[A:%.+]] = llhd.sig name "a" : <i4>
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %pos = wire "\\pos" output port 2 : !rtlil<val[4]>
+  // CHECK-DAG: [[POS:%.+]] = llhd.prb [[A]] : i4
+  // CHECK-DAG: llhd.drv %pos, [[POS]] after {{%.+}} : i4
+  pos "$1"(%a, %pos) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
+}

@@ -66,3 +66,19 @@ rtlil.module @"\\partial" {
   // CHECK: [[CAT:%.+]] = comb.concat %b, %a : i2, i2
   // CHECK: hw.output [[CAT]] : i4
 }
+
+// CHECK-LABEL: hw.module @unary(in %a : i4, out not : i4, out neg : i4, out pos : i4)
+rtlil.module @"\\unary" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %not = wire "\\not" output port 2 : !rtlil<val[4]>
+  %neg = wire "\\neg" output port 3 : !rtlil<val[4]>
+  %pos = wire "\\pos" output port 4 : !rtlil<val[4]>
+  // CHECK-DAG: [[ONES:%.+]] = hw.constant -1 : i4
+  // CHECK-DAG: [[NOT:%.+]] = comb.xor %a, [[ONES]] : i4
+  not "$1"(%a, %not) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[ZERO:%.+]] = hw.constant 0 : i4
+  // CHECK-DAG: [[NEG:%.+]] = comb.sub [[ZERO]], %a : i4
+  neg "$2"(%a, %neg) {aSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
+  pos "$3"(%a, %pos) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK: hw.output [[NOT]], [[NEG]], %a : i4, i4, i4
+}

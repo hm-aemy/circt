@@ -248,6 +248,43 @@ static LogicalResult convertFixedOperands(CellOp op,
   return success();
 }
 
+/// Drives Y of a unary cell with `fn` applied to A.
+template <typename CellOp>
+static LogicalResult convertUnary(CellOp op, typename CellOp::Adaptor adaptor,
+                                  ConversionPatternRewriter &rewriter,
+                                  llvm::function_ref<Value(Value)> fn) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  Value input = llhd::ProbeOp::create(rewriter, loc, connections[0]);
+  drive(rewriter, loc, connections[1], fn(input));
+  rewriter.eraseOp(op);
+  return success();
+}
+
+/// `$not` is an XOR with all ones, as in MooreToCore.
+static LogicalResult convert(NotOp op, NotOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [&](Value input) {
+    return comb::createOrFoldNot(rewriter, op.getLoc(), input);
+  });
+}
+
+/// `$neg` is a subtraction from zero.
+static LogicalResult convert(NegOp op, NegOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [&](Value input) -> Value {
+    auto zero =
+        hw::ConstantOp::create(rewriter, op.getLoc(), input.getType(), 0);
+    return comb::SubOp::create(rewriter, op.getLoc(), zero, input);
+  });
+}
+
+/// `$pos` passes A through.
+static LogicalResult convert(PosOp op, PosOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  return convertUnary(op, adaptor, rewriter, [](Value input) { return input; });
+}
+
 /// Cells whose Comb op depends on the signedness of the operands.
 template <typename CellOp, typename UnsignedOp, typename SignedOp>
 static LogicalResult convertSigned(CellOp op, typename CellOp::Adaptor adaptor,
@@ -359,6 +396,9 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::ShlOp>(convertFixedOperands<rtlil::ShlOp, comb::ShlOp>);
   patterns.add<rtlil::ShrOp>(convertFixedOperands<rtlil::ShrOp, comb::ShrUOp>);
   patterns.add<SShrOp>(convert);
+  patterns.add<NotOp>(convert);
+  patterns.add<NegOp>(convert);
+  patterns.add<PosOp>(convert);
   patterns.add<rtlil::ReduceXorOp>(
       convertFixedOperands<rtlil::ReduceXorOp, comb::ParityOp>);
   using comb::ICmpPredicate;
