@@ -55,7 +55,16 @@ rtlil.module @"\\top" {
   rtlil.pos "$pos"(%1, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>
 
   // A reduction takes A and Y only.
+  rtlil.reduce_and "$reduce_and"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.reduce_or "$reduce_or"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
   rtlil.reduce_xor "$reduce_xor"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.reduce_xnor "$reduce_xnor"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.reduce_bool "$reduce_bool"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
+
+  // Logic cells have a one-bit Y.
+  rtlil.logic_not "$logic_not"(%1, %8) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.logic_and "$logic_and"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
+  rtlil.logic_or "$logic_or"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
 
   %clk = rtlil.wire "\\clk" : !rtlil<val[1]>
 

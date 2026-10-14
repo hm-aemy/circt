@@ -432,7 +432,26 @@ class ReduceOp<string t> : UnaryOp<t, "1"> {
   let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
 }
 
+def ReduceAndOp : ReduceOp<"reduce_and">;
+def ReduceOrOp : ReduceOp<"reduce_or">;
 def ReduceXorOp : ReduceOp<"reduce_xor">;
+def ReduceXnorOp : ReduceOp<"reduce_xnor">;
+// Whether any bit of A is set, like `reduce_or`.
+def ReduceBoolOp : ReduceOp<"reduce_bool">;
+
+// Logic cells, treating each operand as true if any bit is set
+
+def LogicNotOp : UnaryOp<"logic_not", "1"> {
+  let summary = "The RTLIL `logic_not` cell: Y is 1 if no bit of A is set";
+}
+
+class LogicOp<string t> : CmpOp<t> {
+  let summary =
+      "The RTLIL `" # t # "` cell, combining A and B into a one-bit Y";
+}
+
+def LogicAndOp : LogicOp<"logic_and">;
+def LogicOrOp : LogicOp<"logic_or">;
 
 // Multiplexer cells
 
