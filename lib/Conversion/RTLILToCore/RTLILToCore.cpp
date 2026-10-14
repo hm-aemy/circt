@@ -71,10 +71,28 @@ static void drive(OpBuilder &builder, Location loc, Value signal, Value value) {
   llhd::DriveOp::create(builder, loc, signal, value, time, Value{});
 }
 
+/// The ports of each `rtlil.module`, as the `hw.module` it becomes declares
+/// them. Collected before the conversion, so instances can refer to modules
+/// that are already converted.
+using ModulePortMap = DenseMap<StringAttr, hw::ModulePortInfo>;
+
 /// Returns whether `use` connects its value to a port the user drives.
-static bool isDriven(OpOperand &use) {
+static bool isDriven(OpOperand &use, const ModulePortMap &modulePorts) {
   if (isa<WConnectionOp>(use.getOwner()))
     return use.getOperandNumber() == 0;
+  // The callee of an instance may already be converted, so its port wires
+  // cannot be consulted. Use the collected ports instead.
+  if (auto instance = dyn_cast<rtlil::InstanceOp>(use.getOwner())) {
+    auto it = modulePorts.find(instance.getTypeAttr().getAttr());
+    if (it == modulePorts.end())
+      return false;
+    auto name =
+        makeLocal(instance.getContext(),
+                  cast<StringAttr>(instance.getPorts()[use.getOperandNumber()])
+                      .getValue());
+    return llvm::any_of(it->second.getOutputs(),
+                        [&](const auto &port) { return port.name == name; });
+  }
   if (auto cell = dyn_cast<CellOpInterface>(use.getOwner()))
     return cell.getCellPortDirection(use.getOperandNumber()) ==
            PortDirection::Output;
@@ -85,27 +103,39 @@ static bool isDriven(OpOperand &use) {
 // Structure
 //===----------------------------------------------------------------------===//
 
-/// Create the module by collecting and processing the ports
+/// Collects the ports of all modules, in `port_id` order.
+static LogicalResult collectModulePorts(mlir::ModuleOp root,
+                                        ModulePortMap &modulePorts) {
+  for (auto module : root.getOps<rtlil::ModuleOp>()) {
+    SmallVector<WireOp> portWires;
+    module.getPortWires(portWires);
+    SmallVector<hw::PortInfo> ports;
+    for (auto wire : portWires) {
+      if (wire.isPortInput() && wire.isPortOutput())
+        return wire.emitOpError("inout ports are not supported");
+      hw::PortInfo port;
+      port.name = makeLocal(root.getContext(), wire.getName());
+      port.type = getIntType(wire.getResult());
+      port.dir = wire.isPortInput() ? hw::ModulePort::Direction::Input
+                                    : hw::ModulePort::Direction::Output;
+      port.loc = wire.getLoc();
+      ports.push_back(port);
+    }
+    modulePorts.try_emplace(module.getSymNameAttr(), ports);
+  }
+  return success();
+}
+
+/// Create the module from its collected ports.
 static LogicalResult convert(rtlil::ModuleOp op, rtlil::ModuleOp::Adaptor,
                              ConversionPatternRewriter &rewriter,
-                             const TypeConverter &typeConverter) {
+                             const TypeConverter &typeConverter,
+                             const ModulePortMap &modulePorts) {
   auto *context = op.getContext();
 
   SmallVector<WireOp> portWires;
   op.getPortWires(portWires);
-  SmallVector<hw::PortInfo> ports;
-  // Gathering input and output ports
-  for (auto wire : portWires) {
-    if (wire.isPortInput() && wire.isPortOutput())
-      return wire.emitOpError("inout ports are not supported");
-    hw::PortInfo port;
-    port.name = makeLocal(context, wire.getName());
-    port.type = getIntType(wire.getResult());
-    port.dir = wire.isPortInput() ? hw::ModulePort::Direction::Input
-                                  : hw::ModulePort::Direction::Output;
-    port.loc = wire.getLoc();
-    ports.push_back(port);
-  }
+  const auto &ports = modulePorts.at(op.getSymNameAttr());
 
   auto hwModule = hw::HWModuleOp::create(
       rewriter, op.getLoc(), makeLocal(context, op.getSymName()), ports);
@@ -195,10 +225,12 @@ static LogicalResult convert(SliceOp op, SliceOp::Adaptor adaptor,
 /// connected to its inputs in the direction it is used in.
 static LogicalResult convert(ConcatOp op, ConcatOp::Adaptor adaptor,
                              ConversionPatternRewriter &rewriter,
-                             const TypeConverter &typeConverter) {
+                             const TypeConverter &typeConverter,
+                             const ModulePortMap &modulePorts) {
   auto uses = op.getResult().getUses();
-  bool driven = llvm::any_of(uses, isDriven);
-  if (driven && !llvm::all_of(uses, isDriven))
+  auto isUseDriven = [&](OpOperand &use) { return isDriven(use, modulePorts); };
+  bool driven = llvm::any_of(uses, isUseDriven);
+  if (driven && !llvm::all_of(uses, isUseDriven))
     return op.emitOpError("is both driven and read");
 
   auto loc = op.getLoc();
@@ -410,6 +442,58 @@ static LogicalResult convert(DFFOp op, DFFOp::Adaptor adaptor,
   return success();
 }
 
+/// An instance becomes `hw.instance`. Connections to inputs are probed and
+/// connections to outputs driven, following the ports of the callee.
+static LogicalResult convert(rtlil::InstanceOp op,
+                             rtlil::InstanceOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter,
+                             const ModulePortMap &modulePorts) {
+  auto *context = op.getContext();
+  auto loc = op.getLoc();
+  if (!op.getParameters().empty())
+    return op.emitOpError("with parameters is not supported");
+  auto it = modulePorts.find(op.getTypeAttr().getAttr());
+  if (it == modulePorts.end())
+    return failure();
+  const auto &ports = it->second;
+
+  DenseMap<StringAttr, Value> connections;
+  for (auto [port, connection] :
+       llvm::zip(op.getPorts(), adaptor.getConnections()))
+    connections.try_emplace(
+        makeLocal(context, cast<StringAttr>(port).getValue()), connection);
+
+  SmallVector<Value> inputs;
+  SmallVector<Attribute> argNames;
+  for (const auto &port : ports.getInputs()) {
+    Value connection = connections.lookup(port.name);
+    if (!connection)
+      return op.emitOpError("leaves input port '")
+             << port.name.getValue() << "' unconnected";
+    inputs.push_back(llhd::ProbeOp::create(rewriter, loc, connection));
+    argNames.push_back(port.name);
+  }
+  SmallVector<Type> resultTypes;
+  SmallVector<Attribute> resultNames;
+  for (const auto &port : ports.getOutputs()) {
+    resultTypes.push_back(port.type);
+    resultNames.push_back(port.name);
+  }
+
+  auto instance = hw::InstanceOp::create(
+      rewriter, loc, resultTypes, makeLocal(context, op.getName()),
+      FlatSymbolRefAttr::get(makeLocal(context, op.getType())), inputs,
+      rewriter.getArrayAttr(argNames), rewriter.getArrayAttr(resultNames),
+      rewriter.getArrayAttr({}), hw::InnerSymAttr{});
+  // An unconnected output is left unused.
+  for (auto [port, result] :
+       llvm::zip(ports.getOutputs(), instance.getResults()))
+    if (Value connection = connections.lookup(port.name))
+      drive(rewriter, loc, connection, result);
+  rewriter.eraseOp(op);
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // RTLIL to Core Conversion Pass
 //===----------------------------------------------------------------------===//
@@ -435,13 +519,18 @@ void RTLILToCorePass::runOnOperation() {
   target.addLegalDialect<comb::CombDialect, hw::HWDialect, llhd::LLHDDialect,
                          seq::SeqDialect>();
 
+  ModulePortMap modulePorts;
+  if (failed(collectModulePorts(getOperation(), modulePorts)))
+    return signalPassFailure();
+
   ConversionPatternSet patterns(context, typeConverter);
-  patterns.add<rtlil::ModuleOp>(convert, typeConverter);
+  patterns.add<rtlil::ModuleOp>(convert, modulePorts);
+  patterns.add<rtlil::InstanceOp>(convert, modulePorts);
   patterns.add<WireOp>(convert, typeConverter);
   patterns.add<WConnectionOp>(convert);
   patterns.add<ConstOp>(convert, typeConverter);
   patterns.add<SliceOp>(convert, typeConverter);
-  patterns.add<ConcatOp>(convert, typeConverter);
+  patterns.add<ConcatOp>(convert, modulePorts);
   patterns.add<rtlil::AndOp>(convertFixedOperands<rtlil::AndOp, comb::AndOp>);
   patterns.add<rtlil::OrOp>(convertFixedOperands<rtlil::OrOp, comb::OrOp>);
   patterns.add<rtlil::XorOp>(convertFixedOperands<rtlil::XorOp, comb::XorOp>);

@@ -1,6 +1,5 @@
 // RUN: circt-opt --convert-rtlil-to-core %s --split-input-file --verify-diagnostics
 
-// expected-error@below {{failed to legalize operation 'rtlil.module'}}
 rtlil.module @"\\inout" {
   // expected-error@below {{inout ports are not supported}}
   %a = wire "\\a" inout port 1 : !rtlil<val[1]>
@@ -36,4 +35,29 @@ rtlil.module @"\\concatboth" {
   %cat = concat %a, %b : (!rtlil<val[1]>, !rtlil<val[1]>) -> !rtlil<val[2]>
   wconnection %cat, %o : !rtlil<val[2]>
   wconnection %o, %cat : !rtlil<val[2]>
+}
+
+// -----
+
+rtlil.module @"\\sub" {
+  %x = wire "\\x" input port 1 : !rtlil<val[1]>
+}
+
+rtlil.module @"\\unconnected" {
+  // expected-error@below {{leaves input port 'x' unconnected}}
+  // expected-error@below {{failed to legalize operation 'rtlil.instance'}}
+  instance "\\u" @"\\sub" [] parameters []
+}
+
+// -----
+
+rtlil.module @"\\sub" {
+  %x = wire "\\x" input port 1 : !rtlil<val[1]>
+}
+
+rtlil.module @"\\params" {
+  %a = wire "\\a" input port 1 : !rtlil<val[1]>
+  // expected-error@below {{with parameters is not supported}}
+  // expected-error@below {{failed to legalize operation 'rtlil.instance'}}
+  instance "\\u" @"\\sub" ["\\x" = %a] parameters [#rtlil.param<"\\W" 1 : i32>] : !rtlil<val[1]>
 }
