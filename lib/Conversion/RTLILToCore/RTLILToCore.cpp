@@ -248,6 +248,23 @@ static LogicalResult convertFixedOperands(CellOp op,
   return success();
 }
 
+/// Comparison cells become `comb.icmp`, with the predicate picked by the
+/// signedness of the operands.
+template <typename CellOp, comb::ICmpPredicate unsignedPred,
+          comb::ICmpPredicate signedPred = unsignedPred>
+static LogicalResult convertCmp(CellOp op, typename CellOp::Adaptor adaptor,
+                                ConversionPatternRewriter &rewriter) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  Value lhs = llhd::ProbeOp::create(rewriter, loc, connections[0]);
+  Value rhs = llhd::ProbeOp::create(rewriter, loc, connections[1]);
+  auto pred = op.getOpsSigned() ? signedPred : unsignedPred;
+  drive(rewriter, loc, connections[2],
+        comb::ICmpOp::create(rewriter, loc, pred, lhs, rhs));
+  rewriter.eraseOp(op);
+  return success();
+}
+
 /// Mux output Y is B while S is 1, else A.
 static LogicalResult convert(rtlil::MuxOp op, rtlil::MuxOp::Adaptor adaptor,
                              ConversionPatternRewriter &rewriter) {
@@ -322,6 +339,15 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::ShrOp>(convertFixedOperands<rtlil::ShrOp, comb::ShrUOp>);
   patterns.add<rtlil::ReduceXorOp>(
       convertFixedOperands<rtlil::ReduceXorOp, comb::ParityOp>);
+  using comb::ICmpPredicate;
+  patterns.add<LTOp>(convertCmp<LTOp, ICmpPredicate::ult, ICmpPredicate::slt>);
+  patterns.add<LEOp>(convertCmp<LEOp, ICmpPredicate::ule, ICmpPredicate::sle>);
+  patterns.add<GTOp>(convertCmp<GTOp, ICmpPredicate::ugt, ICmpPredicate::sgt>);
+  patterns.add<GEOp>(convertCmp<GEOp, ICmpPredicate::uge, ICmpPredicate::sge>);
+  patterns.add<EQOp>(convertCmp<EQOp, ICmpPredicate::eq>);
+  patterns.add<NEOp>(convertCmp<NEOp, ICmpPredicate::ne>);
+  patterns.add<EQXOp>(convertCmp<EQXOp, ICmpPredicate::ceq>);
+  patterns.add<NEXOp>(convertCmp<NEXOp, ICmpPredicate::cne>);
   patterns.add<rtlil::MuxOp>(convert);
   patterns.add<DFFOp>(convert);
 
