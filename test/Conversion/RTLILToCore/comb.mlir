@@ -279,3 +279,18 @@ rtlil.module @"\\xnor" {
   // CHECK-DAG: llhd.drv %y, [[XNOR]] after {{%.+}} : i4
   xnor "$1"(%a, %b, %y) {opsSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
 }
+
+// `$sshl` is a plain left shift, whatever the signedness of A.
+// CHECK-LABEL: hw.module @sshl(in %a : i4, in %b : i4, out s : i4, out u : i4)
+rtlil.module @"\\sshl" {
+  %a = wire "\\a" input port 1 : !rtlil<val[4]>
+  %b = wire "\\b" input port 2 : !rtlil<val[4]>
+  %s = wire "\\s" output port 3 : !rtlil<val[4]>
+  %u = wire "\\u" output port 4 : !rtlil<val[4]>
+  // CHECK-DAG: [[S:%.+]] = comb.shl {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %s, [[S]] after {{%.+}} : i4
+  sshl "$1"(%a, %b, %s) {aSigned = 1 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+  // CHECK-DAG: [[U:%.+]] = comb.shl {{%.+}}, {{%.+}} : i4
+  // CHECK-DAG: llhd.drv %u, [[U]] after {{%.+}} : i4
+  sshl "$2"(%a, %b, %u) {aSigned = 0 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[4]>
+}

@@ -557,6 +557,7 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::ModOp>(
       convertSigned<rtlil::ModOp, comb::ModUOp, comb::ModSOp>);
   patterns.add<rtlil::ShlOp>(convertFixedOperands<rtlil::ShlOp, comb::ShlOp>);
+  patterns.add<SShlOp>(convertFixedOperands<SShlOp, comb::ShlOp>);
   patterns.add<rtlil::ShrOp>(convertFixedOperands<rtlil::ShrOp, comb::ShrUOp>);
   patterns.add<SShrOp>(convert);
   patterns.add<NotOp>(convert);
