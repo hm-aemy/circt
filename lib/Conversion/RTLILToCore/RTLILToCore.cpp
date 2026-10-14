@@ -18,7 +18,7 @@
 #include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Dialect/LLHD/LLHDOps.h"
 #include "circt/Dialect/RTLIL/RTLILOps.h"
-#include "circt/Dialect/Seq/SeqDialect.h"
+#include "circt/Dialect/Seq/SeqOps.h"
 #include "circt/Dialect/Verif/VerifOps.h"
 #include "circt/Support/ConversionPatternSet.h"
 #include "circt/Transforms/Passes.h"
@@ -77,7 +77,7 @@ static void drive(OpBuilder &builder, Location loc, Value signal, Value value) {
 static bool isDriven(OpOperand &use) {
   return TypeSwitch<Operation *, bool>(use.getOwner())
       .Case<WConnectionOp>([&](auto) { return use.getOperandNumber() == 0; })
-      .Case<rtlil::AndOp, rtlil::OrOp, rtlil::XorOp>([&](auto op) {
+      .Case<rtlil::AndOp, rtlil::OrOp, rtlil::XorOp, DFFOp>([&](auto op) {
         return use.getOperandNumber() == op.getNumOperands() - 1;
       })
       .Default([](auto) { return false; });
@@ -248,6 +248,24 @@ static LogicalResult convertFixedOperands(CellOp op,
   return success();
 }
 
+/// Rising edge `$dff` is a `seq.compreg` without reset.
+static LogicalResult convert(DFFOp op, DFFOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  Value clk = seq::ToClockOp::create(
+      rewriter, loc, llhd::ProbeOp::create(rewriter, loc, connections[0]));
+  Value input = llhd::ProbeOp::create(rewriter, loc, connections[1]);
+  seq::CompRegOp reg;
+  if (auto name = getSignalName(op.getContext(), op.getName()))
+    reg = seq::CompRegOp::create(rewriter, loc, input, clk, name);
+  else
+    reg = seq::CompRegOp::create(rewriter, loc, input, clk);
+  drive(rewriter, loc, connections[2], reg);
+  rewriter.eraseOp(op);
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // RTLIL to Core Conversion Pass
 //===----------------------------------------------------------------------===//
@@ -283,6 +301,7 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::AndOp>(convertFixedOperands<rtlil::AndOp, comb::AndOp>);
   patterns.add<rtlil::OrOp>(convertFixedOperands<rtlil::OrOp, comb::OrOp>);
   patterns.add<rtlil::XorOp>(convertFixedOperands<rtlil::XorOp, comb::XorOp>);
+  patterns.add<DFFOp>(convert);
 
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))
