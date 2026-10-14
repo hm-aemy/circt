@@ -341,6 +341,7 @@ class BinOp<string t>
 def AndOp : BinOp<"and">;
 def OrOp  : BinOp<"or">;
 def XorOp : BinOp<"xor">;
+def XnorOp : BinOp<"xnor">;
 def AddOp : BinOp<"add">;
 def SubOp : BinOp<"sub">;
 def MulOp : BinOp<"mul">;
@@ -368,6 +369,8 @@ class ShiftOp<string t>
 }
 
 def ShlOp : ShiftOp<"shl">;
+// Same as `shl` at equal widths: the sign only matters when extending A.
+def SShlOp : ShiftOp<"sshl">;
 def ShrOp : ShiftOp<"shr">;
 // Shift sign bit with A_SIGNED set.
 def SShrOp : ShiftOp<"sshr">;

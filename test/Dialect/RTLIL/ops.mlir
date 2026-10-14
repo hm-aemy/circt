@@ -27,6 +27,7 @@ rtlil.module @"\\top" {
   rtlil.or "$or"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.sub "$sub"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.xor "$xor"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.xnor "$xnor"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.mul "$mul"(%1, %6, %4) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.div "$div"(%1, %6, %4) {opsSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.mod "$mod"(%1, %6, %4) {opsSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
@@ -34,6 +35,7 @@ rtlil.module @"\\top" {
   // The shift cells spell the A_SIGNED parameter on its own: B is unsigned
   // whatever A is.
   rtlil.shl "$shl"(%1, %6, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
+  rtlil.sshl "$sshl"(%1, %6, %4) {aSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.shr "$shr"(%1, %6, %4) {aSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
   rtlil.sshr "$sshr"(%1, %6, %4) {aSigned = 1 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[32]>
 
