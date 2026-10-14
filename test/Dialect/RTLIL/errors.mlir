@@ -390,3 +390,14 @@ rtlil.module @"\\top" {
   // expected-error@+1 {{'rtlil.instance' op connects 32 bits to port '\a', which is 8 bits wide}}
   rtlil.instance "$i" @"\\callee" ["\\a" = %w] parameters [] : !rtlil<val[32]>
 }
+
+// -----
+
+rtlil.module @"\\top" {
+  %a = rtlil.wire "$a" : !rtlil<val[4]>
+  %b = rtlil.wire "$b" : !rtlil<val[4]>
+  %s = rtlil.wire "$s" : !rtlil<val[2]>
+  %y = rtlil.wire "$y" : !rtlil<val[4]>
+  // expected-error@+1 {{'rtlil.pmux' op port B is 4 bits wide, but must be 8}}
+  rtlil.pmux "$pmux"(%a, %b, %s, %y) {sWidth = 2 : i32, width = 4 : i32} : !rtlil<val[4]>, !rtlil<val[4]>, !rtlil<val[2]>, !rtlil<val[4]>
+}

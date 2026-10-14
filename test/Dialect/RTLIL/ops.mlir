@@ -66,6 +66,11 @@ rtlil.module @"\\top" {
   rtlil.logic_and "$logic_and"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
   rtlil.logic_or "$logic_or"(%1, %6, %8) {opsSigned = 0 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[32]>, !rtlil<val[1]>
 
+  // B holds S_WIDTH cases of WIDTH bits each.
+  %b64 = rtlil.wire "$b64" : !rtlil<val[64]>
+  %s2 = rtlil.wire "$s2" : !rtlil<val[2]>
+  rtlil.pmux "$pmux"(%1, %b64, %s2, %6) {sWidth = 2 : i32, width = 32 : i32} : !rtlil<val[32]>, !rtlil<val[64]>, !rtlil<val[2]>, !rtlil<val[32]>
+
   %clk = rtlil.wire "\\clk" : !rtlil<val[1]>
 
   rtlil.dff "$dff"(%clk, %6, %1) {width = 32 : i32} : !rtlil<val[1]>, !rtlil<val[32]>, !rtlil<val[32]>

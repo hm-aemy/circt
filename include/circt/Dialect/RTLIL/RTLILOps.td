@@ -466,6 +466,26 @@ def MuxOp : TypedCellOp<"mux", [CellPort<"A">, CellPort<"B">,
   }], "getParameters()">;
 }
 
+// B holds one `width` wide case per bit of S, case `i` at bits
+// `[i * width, (i + 1) * width)`.
+def PMuxOp : TypedCellOp<"pmux", [CellPort<"A">,
+                                  CellPort<"B", "$width * getSWidth()">,
+                                  CellPort<"S", "getSWidth()">],
+                         [CellPort<"Y">], (ins I32Attr:$sWidth)> {
+  let summary =
+      "The RTLIL `pmux` cell: Y is case `i` of B while only bit `i` of S is "
+      "1, and A while S is 0";
+  let description = [{
+    Y is undefined if more than one bit of S is 1.
+  }];
+  DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
+    return ::circt::rtlil::createParamArrayAttr(getContext(), {
+      {"\\WIDTH", 32, getWidth()},
+      {"\\S_WIDTH", 32, getSWidth()},
+    });
+  }], "getParameters()">;
+}
+
 // Flip-flop cells
 
 def DFFOp : TypedCellOp<"dff", [CellPort<"CLK", "1">, CellPort<"D">],
