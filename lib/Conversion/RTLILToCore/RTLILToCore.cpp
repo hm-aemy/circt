@@ -77,9 +77,10 @@ static void drive(OpBuilder &builder, Location loc, Value signal, Value value) {
 static bool isDriven(OpOperand &use) {
   return TypeSwitch<Operation *, bool>(use.getOwner())
       .Case<WConnectionOp>([&](auto) { return use.getOperandNumber() == 0; })
-      .Case<rtlil::AndOp, rtlil::OrOp, rtlil::XorOp, DFFOp>([&](auto op) {
-        return use.getOperandNumber() == op.getNumOperands() - 1;
-      })
+      .Case<rtlil::AndOp, rtlil::OrOp, rtlil::XorOp, rtlil::MuxOp, DFFOp>(
+          [&](auto op) {
+            return use.getOperandNumber() == op.getNumOperands() - 1;
+          })
       .Default([](auto) { return false; });
 }
 
@@ -248,6 +249,20 @@ static LogicalResult convertFixedOperands(CellOp op,
   return success();
 }
 
+/// Mux output Y is B while S is 1, else A.
+static LogicalResult convert(rtlil::MuxOp op, rtlil::MuxOp::Adaptor adaptor,
+                             ConversionPatternRewriter &rewriter) {
+  auto loc = op.getLoc();
+  auto connections = adaptor.getConnections();
+  Value a = llhd::ProbeOp::create(rewriter, loc, connections[0]);
+  Value b = llhd::ProbeOp::create(rewriter, loc, connections[1]);
+  Value s = llhd::ProbeOp::create(rewriter, loc, connections[2]);
+  drive(rewriter, loc, connections[3],
+        comb::MuxOp::create(rewriter, loc, s, b, a));
+  rewriter.eraseOp(op);
+  return success();
+}
+
 /// Rising edge `$dff` is a `seq.compreg` without reset.
 static LogicalResult convert(DFFOp op, DFFOp::Adaptor adaptor,
                              ConversionPatternRewriter &rewriter) {
@@ -301,6 +316,7 @@ void RTLILToCorePass::runOnOperation() {
   patterns.add<rtlil::AndOp>(convertFixedOperands<rtlil::AndOp, comb::AndOp>);
   patterns.add<rtlil::OrOp>(convertFixedOperands<rtlil::OrOp, comb::OrOp>);
   patterns.add<rtlil::XorOp>(convertFixedOperands<rtlil::XorOp, comb::XorOp>);
+  patterns.add<rtlil::MuxOp>(convert);
   patterns.add<DFFOp>(convert);
 
   if (failed(
