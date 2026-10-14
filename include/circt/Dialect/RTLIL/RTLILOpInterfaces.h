@@ -9,11 +9,13 @@
 #ifndef CIRCT_DIALECT_RTLIL_RTLILOPINTERFACES_H
 #define CIRCT_DIALECT_RTLIL_RTLILOPINTERFACES_H
 
+#include "circt/Dialect/RTLIL/RTLILEnums.h"
 #include "circt/Support/LLVM.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/ValueRange.h"
 #include "llvm/ADT/StringRef.h"
+#include <optional>
 
 namespace circt::rtlil {
 

@@ -193,6 +193,34 @@ LogicalResult ConcatOp::verify() {
 // InstanceOp
 //===----------------------------------------------------------------------===//
 
+//===----------------------------------------------------------------------===//
+// CellOp
+//===----------------------------------------------------------------------===//
+
+/// Without a cell library, the direction of a generic cell port is unknown.
+std::optional<PortDirection> CellOp::getCellPortDirection(unsigned) {
+  return std::nullopt;
+}
+
+//===----------------------------------------------------------------------===//
+// InstanceOp
+//===----------------------------------------------------------------------===//
+
+/// The direction of the callee port wire with the same name.
+std::optional<PortDirection> InstanceOp::getCellPortDirection(unsigned index) {
+  auto callee = SymbolTable::lookupNearestSymbolFrom<rtlil::ModuleOp>(
+      *this, getTypeAttr());
+  if (!callee)
+    return std::nullopt;
+  StringRef name = cast<StringAttr>(getPorts()[index]).getValue();
+  SmallVector<WireOp> portWires;
+  callee.getPortWires(portWires);
+  for (WireOp port : portWires)
+    if (port.getName() == name)
+      return port.getDirection();
+  return std::nullopt;
+}
+
 LogicalResult InstanceOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // `rtlil.module` is not a SymbolTable, so the lookup resolves in the
   // enclosing `builtin.module`, which represents the RTLIL design.

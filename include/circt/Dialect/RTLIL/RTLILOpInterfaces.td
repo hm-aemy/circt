@@ -54,7 +54,12 @@ def CellOpInterface : OpInterface<"CellOpInterface"> {
     }], "::mlir::ArrayAttr", "getCellParameters", (ins),
     "", [{
       return $_op.getParameters();
-    }]>
+    }]>,
+    InterfaceMethod<[{
+      Returns the direction of the port at `index`, or nothing if it is not
+      known, such as for a generic `rtlil.cell`.
+    }], "std::optional<::circt::rtlil::PortDirection>", "getCellPortDirection",
+    (ins "unsigned":$index)>
   ];
 }
 

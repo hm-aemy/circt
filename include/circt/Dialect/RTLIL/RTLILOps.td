@@ -270,16 +270,24 @@ def InstanceOp : RTLILOp<"instance", [
 class FixedOperands<int n>
     : AllMatch<["getNumOperands()", "" # n], "has " # n # " connections">;
 
+// A port of a typed cell. `width` is either a number or `$width`, the op's
+// `width` attribute.
+class CellPort<string n, string w = "$width"> {
+  string name = n;
+  string width = w;
+}
+
 // A cell type with a dedicated op.
-// `ports` and `widths` line up with `$connections`. A width is either a number
-// or `$width`, the op's `width` attribute; the verifier checks each port.
+// `$connections` are the `inputs` followed by the `outputs`; the verifier
+// checks the width of each port.
 // `extraArgs` for arguments between `$width` and `$type`, such as a signedness
 // flag.
 // `$type` and `$ports` are fixed by the op.
-class TypedCellOp<string t, list<string> ports, list<string> widths,
+class TypedCellOp<string t, list<CellPort> inputs, list<CellPort> outputs,
                   dag extraArgs = (ins)>
     : RTLILOp<t, [DeclareOpInterfaceMethods<CellOpInterface>,
-                  FixedOperands<!size(widths)>]> {
+                  FixedOperands<!size(!listconcat(inputs, outputs))>]> {
+  defvar ports = !listconcat(inputs, outputs);
   let arguments = !con(
       (ins StrAttr:$name,
            Variadic<MValueType>:$connections,
@@ -287,18 +295,31 @@ class TypedCellOp<string t, list<string> ports, list<string> widths,
       extraArgs,
       (ins DefaultValuedAttr<StrAttr, [{"$$}] # t # [{"}]>:$type,
            DefaultValuedAttr<StrArrayAttr,
-             "{" # !interleave(!foreach(p, ports, [{"\\}] # p # [{"}]), ", ")
+             "{" # !interleave(!foreach(p, ports, [{"\\}] # p.name # [{"}]),
+                               ", ")
                  # "}">:$ports));
   let assemblyFormat = [{
     $name `(` $connections `)` attr-dict `:` type($connections)
   }];
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// The number of leading connections that are inputs.
+    static constexpr unsigned getNumCellInputs() { return }] #
+        !size(inputs) # [{; }
+  }];
   let extraClassDefinition = [{
     ::mlir::LogicalResult $cppClass::verify() {
       return verifyPortWidths(*this, {}] #
-        !interleave(!foreach(p, ports, "\"" # p # "\""), ", ") # [{}, {}] #
-        !interleave(!foreach(w, widths, !subst("$width", "getWidth()", w)),
+        !interleave(!foreach(p, ports, "\"" # p.name # "\""), ", ") #
+        [{}, {}] #
+        !interleave(!foreach(p, ports, !subst("$width", "getWidth()", p.width)),
                     ", ") # [{});
+    }
+
+    std::optional<::circt::rtlil::PortDirection>
+    $cppClass::getCellPortDirection(unsigned index) {
+      return index < getNumCellInputs() ? ::circt::rtlil::PortDirection::Input
+                                        : ::circt::rtlil::PortDirection::Output;
     }
   }];
 }
@@ -306,7 +327,7 @@ class TypedCellOp<string t, list<string> ports, list<string> widths,
 // Binary arithmetic and bitwise cells
 
 class BinOp<string t>
-    : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "$width"],
+    : TypedCellOp<t, [CellPort<"A">, CellPort<"B">], [CellPort<"Y">],
                   (ins I32Attr:$opsSigned)> {
   let summary =
       "The RTLIL `" # t # "` cell, with equally wide A, B and Y ports";
@@ -335,7 +356,7 @@ def ModOp : BinOp<"mod">;
 // Shift cells
 
 class ShiftOp<string t>
-    : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "$width"],
+    : TypedCellOp<t, [CellPort<"A">, CellPort<"B">], [CellPort<"Y">],
                   (ins I32Attr:$aSigned)> {
   let summary =
       "The RTLIL `" # t # "` cell, shifting A by an unsigned B into Y";
@@ -358,7 +379,7 @@ def SShrOp : ShiftOp<"sshr">;
 // Comparison cells
 
 class CmpOp<string t>
-    : TypedCellOp<t, ["A", "B", "Y"], ["$width", "$width", "1"],
+    : TypedCellOp<t, [CellPort<"A">, CellPort<"B">], [CellPort<"Y", "1">],
                   (ins I32Attr:$opsSigned)> {
   let summary =
       "The RTLIL `" # t # "` cell, comparing A and B into a one-bit Y";
@@ -386,7 +407,8 @@ def GTOp : CmpOp<"gt">;
 // Reduction cells
 
 class ReduceOp<string t>
-    : TypedCellOp<t, ["A", "Y"], ["$width", "1"], (ins I32Attr:$aSigned)> {
+    : TypedCellOp<t, [CellPort<"A">], [CellPort<"Y", "1">],
+                  (ins I32Attr:$aSigned)> {
   let summary = "The RTLIL `" # t # "` cell, reducing A to a one-bit Y";
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
     return ::circt::rtlil::createParamArrayAttr(getContext(), {
@@ -401,8 +423,9 @@ def ReduceXorOp : ReduceOp<"reduce_xor">;
 
 // Multiplexer cells
 
-def MuxOp : TypedCellOp<"mux", ["A", "B", "S", "Y"],
-                        ["$width", "$width", "1", "$width"]> {
+def MuxOp : TypedCellOp<"mux", [CellPort<"A">, CellPort<"B">,
+                                CellPort<"S", "1">],
+                        [CellPort<"Y">]> {
   let summary = "The RTLIL `mux` cell: Y is B when S is 1, else A";
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
     return ::circt::rtlil::createParamArrayAttr(getContext(), {
@@ -413,7 +436,8 @@ def MuxOp : TypedCellOp<"mux", ["A", "B", "S", "Y"],
 
 // Flip-flop cells
 
-def DFFOp : TypedCellOp<"dff", ["CLK", "D", "Q"], ["1", "$width", "$width"]> {
+def DFFOp : TypedCellOp<"dff", [CellPort<"CLK", "1">, CellPort<"D">],
+                        [CellPort<"Q">]> {
   let summary = "The RTLIL `dff` cell: Q takes D on the rising CLK edge";
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
     return ::circt::rtlil::createParamArrayAttr(getContext(), {
@@ -423,8 +447,9 @@ def DFFOp : TypedCellOp<"dff", ["CLK", "D", "Q"], ["1", "$width", "$width"]> {
   }], "getParameters()">;
 }
 
-def ALDFFOp : TypedCellOp<"aldff", ["CLK", "D", "ALOAD", "AD", "Q"],
-                          ["1", "$width", "1", "$width", "$width"]> {
+def ALDFFOp : TypedCellOp<"aldff", [CellPort<"CLK", "1">, CellPort<"D">,
+                                    CellPort<"ALOAD", "1">, CellPort<"AD">],
+                          [CellPort<"Q">]> {
   let summary =
       "The RTLIL `aldff` cell: a `dff` that loads AD while ALOAD is 1";
   DerivedAttr parameters = DerivedAttr<"::mlir::ArrayAttr", [{
